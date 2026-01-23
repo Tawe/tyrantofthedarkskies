@@ -1,0 +1,22 @@
+{
+  "race_id": "tuskagor",
+  "name": "Tuskagor",
+  "description": "The Tuskagor are a cursed race of hogfolk, born from a divine punishment. Long ago, an ancient kingdom attempted to purge the followers of the Goddess of Food. The curse twisted the persecutors into what they sought to destroy, binding hunger, strength, and shame into their bloodline.",
+  "cultural_traits": [
+    "Strong physical presence",
+    "Cultural memory of divine punishment",
+    "Deeply conflicted relationship with food and faith"
+  ],
+  "attribute_modifiers": {
+    "physical": 2,
+    "mental": -1,
+    "spiritual": 0,
+    "social": 0
+  },
+  "free_points": 0,
+  "starting_skills": {
+    "fighting": 2,
+    "intimidating": 3
+  },
+  "color": "orange"
+}

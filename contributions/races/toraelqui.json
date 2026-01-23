@@ -1,0 +1,22 @@
+{
+  "race_id": "toraelqui",
+  "name": "Toraelqui",
+  "description": "The Toraelqui are a simian, aquatic race who worship the Great Underflow — a vast, unseen current believed to guide all waters and all lives. Their spirituality is experiential, shaped by tides, pressure, and motion rather than dogma.",
+  "cultural_traits": [
+    "Aquatic and amphibious",
+    "Strong ritual traditions tied to water",
+    "Communal, flow-oriented worldview"
+  ],
+  "attribute_modifiers": {
+    "physical": 1,
+    "mental": 0,
+    "spiritual": 1,
+    "social": -1
+  },
+  "free_points": 0,
+  "starting_skills": {
+    "swimming": 5,
+    "praying": 2
+  },
+  "color": "cyan"
+}

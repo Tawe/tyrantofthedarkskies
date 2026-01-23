@@ -1,0 +1,25 @@
+{
+  "maneuver_id": "precise_shot",
+  "name": "Precise Shot",
+  "tier": "Mid",
+  "description": "A carefully aimed ranged attack that ignores partial cover.",
+  "required_skills": {
+    "throwing": 30,
+    "investigating": 20
+  },
+  "required_level": 6,
+  "attributes": [
+    "mental",
+    "physical"
+  ],
+  "cost": {
+    "stamina": 15
+  },
+  "cooldown": 1,
+  "effects": {
+    "success": "heavy_damage + ignore_cover",
+    "critical": "heavy_damage + ignore_armor",
+    "failure": "miss",
+    "critical_failure": "weapon_jam_1_turn"
+  }
+}

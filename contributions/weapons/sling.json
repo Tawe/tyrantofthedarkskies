@@ -1,0 +1,15 @@
+{
+  "id": "sling",
+  "name": "Sling",
+  "category": "Ranged",
+  "class": "Sling",
+  "hands": 1,
+  "range": 4,
+  "damage_min": 2,
+  "damage_max": 4,
+  "damage_type": "bludgeoning",
+  "crit_chance": 0.25,
+  "speed_cost": 0.9,
+  "durability": 35,
+  "description": "A simple one-handed sling, fast and deadly in skilled hands."
+}

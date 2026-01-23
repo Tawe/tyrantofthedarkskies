@@ -1,0 +1,9 @@
+{
+  "id": "glass",
+  "name": "Glass",
+  "damage_bonus": 2,
+  "crit_bonus": 0.1,
+  "speed_multiplier": 0.85,
+  "durability_bonus": -40,
+  "notes": "Extremely sharp but fragile; devastating on critical hits"
+}

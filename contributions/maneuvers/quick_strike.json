@@ -1,0 +1,25 @@
+{
+  "maneuver_id": "quick_strike",
+  "name": "Quick Strike",
+  "tier": "Lower",
+  "description": "A fast but less powerful attack that's harder to dodge.",
+  "required_skills": {
+    "fighting": 10,
+    "dodging": 10
+  },
+  "required_level": 1,
+  "attributes": [
+    "physical",
+    "mental"
+  ],
+  "cost": {
+    "stamina": 5
+  },
+  "cooldown": 1,
+  "effects": {
+    "success": "light_damage",
+    "critical": "light_damage + off_balance",
+    "failure": "miss",
+    "critical_failure": "expose_defense"
+  }
+}

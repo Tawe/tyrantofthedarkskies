@@ -1,0 +1,28 @@
+{
+  "planet_id": "veyra",
+  "name": "Veyra — The Red Sentinel",
+  "theme": "Endurance, conflict, standing your ground",
+  "cosmic_role": "Guardian of those who survive by force of will and body",
+  "description": "Strong and resilient, earth-aligned characters excel at defense and endurance.",
+  "attribute_bonuses": {
+    "physical": 2,
+    "mental": 0,
+    "spiritual": 1,
+    "social": 0
+  },
+  "starting_skills": {
+    "fighting": 5,
+    "climbing": 5,
+    "smithing": 3
+  },
+  "gift_maneuver": "shield_bashing",
+  "passive_effect": "Gain bonuses when injured or outnumbered",
+  "passive_description": "When below 50% health or facing multiple enemies, gain damage resistance and determination bonuses.",
+  "color": "red",
+  "tier_scaling": {
+    "low": "Bonuses trigger below 50% health",
+    "mid": "Bonuses trigger below 60% health",
+    "high": "Shield Bashing can affect large enemies",
+    "epic": "Cannot be reduced below 1 HP once per day"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "room_id": "governors_house",
+  "name": "Governor's House",
+  "description": "A fortified wooden manor overlooking the docks. This is the seat of political authority in New Cove, where the appointed Governor represents distant interests. High-level contracts and faction negotiations take place here.",
+  "exits": {
+    "south": "new_cove_square",
+    "east": "docks"
+  },
+  "items": [],
+  "npcs": [
+    "governor"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

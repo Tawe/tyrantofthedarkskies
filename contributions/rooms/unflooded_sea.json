@@ -1,0 +1,17 @@
+{
+  "room_id": "unflooded_sea",
+  "name": "The Unflooded Sea",
+  "description": "Beyond the palisade lies the Unflooded Sea - a vast plain of ancient ocean floor that has risen to sea level. Twisted coral-like growths called Rift Forests rise in the distance, and vast fields of hardened kelp fronds wave in the wind. This is the primary early exploration zone, where strange tides flow with no water, and unmapped ruins lie buried beneath silt and coral stone.",
+  "exits": {
+    "north": "wooden_wall",
+    "east": "rift_forest",
+    "south": "kelp_plains",
+    "west": "ancient_ruins"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": [
+    "dangerous"
+  ],
+  "combat_tags": []
+}

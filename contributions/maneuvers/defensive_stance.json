@@ -1,0 +1,23 @@
+{
+  "maneuver_id": "defensive_stance",
+  "name": "Defensive Stance",
+  "tier": "Lower",
+  "description": "Assume a defensive posture that improves dodging.",
+  "required_skills": {
+    "dodging": 20
+  },
+  "required_level": 2,
+  "attributes": [
+    "physical"
+  ],
+  "cost": {
+    "stamina": 15
+  },
+  "cooldown": 0,
+  "effects": {
+    "success": "dodge_bonus_3_turns",
+    "critical": "dodge_bonus_5_turns + counter_ready",
+    "failure": "stamina_cost_only",
+    "critical_failure": "lose_balance"
+  }
+}

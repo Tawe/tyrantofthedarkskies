@@ -1,0 +1,17 @@
+{
+  "starsign_id": "gilded_crown",
+  "name": "The Gilded Crown",
+  "theme": "Authority, command, expectation",
+  "description": "Born under the Gilded Crown, these characters carry an air of natural leadership. Others instinctively recognize their authority.",
+  "attribute_modifiers": {
+    "physical": -1,
+    "mental": 0,
+    "spiritual": 0,
+    "social": 2
+  },
+  "fated_mark": {
+    "name": "Gain +1 View Score on first impressions with NPCs",
+    "description": "Your first interaction with others shapes how they perceive you. Those in authority may find you more trustworthy."
+  },
+  "color": "yellow"
+}

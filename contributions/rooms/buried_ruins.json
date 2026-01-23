@@ -1,0 +1,15 @@
+{
+  "room_id": "buried_ruins",
+  "name": "Buried Ruins",
+  "description": "Ruins that have been almost completely reclaimed by the Unflooded Sea. Only the tops of structures are visible above the silt and coral stone. Strange tides with no water flow through this area, creating an otherworldly atmosphere. This is where explorers hope to find relics of lost civilizations.",
+  "exits": {
+    "north": "kelp_plains"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": [
+    "dangerous",
+    "dark"
+  ],
+  "combat_tags": []
+}

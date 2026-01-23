@@ -1,0 +1,9 @@
+{
+  "item_id": "dagger",
+  "name": "Dagger",
+  "description": "A small, fast blade with high critical hit potential.",
+  "item_type": "weapon",
+  "value": 45,
+  "weapon_template_id": "dagger",
+  "weapon_modifier_id": null
+}

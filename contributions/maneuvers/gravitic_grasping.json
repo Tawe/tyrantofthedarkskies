@@ -1,0 +1,23 @@
+{
+  "maneuver_id": "gravitic_grasping",
+  "name": "Gravitic Grasping",
+  "tier": "Lower",
+  "description": "Manipulate gravity to hinder and crush foes.",
+  "required_skills": {},
+  "required_level": 1,
+  "planet": "thalos",
+  "attributes": [
+    "spiritual",
+    "physical"
+  ],
+  "cost": {
+    "mana": 20
+  },
+  "cooldown": 3,
+  "effects": {
+    "success": "slow_2_turns + damage_reduction",
+    "critical": "pin_2_turns + area_slow",
+    "failure": "mana_cost_only",
+    "critical_failure": "self_slow_2_turns"
+  }
+}

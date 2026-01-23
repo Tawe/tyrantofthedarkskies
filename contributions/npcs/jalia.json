@@ -1,0 +1,71 @@
+{
+  "npc_id": "jalia",
+  "name": "Jalia",
+  "description": "Jalia stands behind a cluttered wooden counter, sleeves rolled up, dark hair tied back with a bit of twine. Her eyes are sharp and constantly moving, tracking both customers and inventory. Every item in the shop looks worn but cared for, repaired just enough to keep it useful.",
+  "health": 50,
+  "max_health": 50,
+  "mana": 25,
+  "max_mana": 25,
+  "stamina": 50,
+  "max_stamina": 50,
+  "attributes": {
+    "physical": 8,
+    "mental": 12,
+    "spiritual": 10,
+    "social": 11
+  },
+  "skills": {
+    "repairing": 15,
+    "bargaining": 12
+  },
+  "combat_role": null,
+  "tier": "Low",
+  "level": 2,
+  "exp_value": 0,
+  "known_maneuvers": [],
+  "active_maneuvers": [],
+  "equipped": {},
+  "is_hostile": false,
+  "combat_state": "Observing",
+  "loot_table": [],
+  "outlooks": {
+    "tawe": 6
+  },
+  "faction_outlooks": {
+    "new_cove_merchants": 0
+  },
+  "dialogue": [
+    "If you're here to browse, take your time. If you're here to buy, say what you need. If you're here to steal… don't.",
+    "This is [goods], not a museum. Touch what you like — carefully."
+  ],
+  "inventory": [],
+  "shop_inventory": [
+    "shortsword",
+    "dagger",
+    "spear",
+    "padded_armor",
+    "leather_jerkin",
+    "wooden_shield",
+    "rope",
+    "lantern",
+    "oil_flask",
+    "repair_kit",
+    "healing_potion",
+    "travel_rations"
+  ],
+  "keywords": {
+    "goods": "Basic supplies. Nothing fancy, nothing cursed. Weapons that won't snap, armor that won't rot, and tools that still work after a week in the Unflooded Sea. Use 'list' or 'shop' to see what I have.",
+    "buy": "Looking to buy? Use 'list' or 'shop' to see my inventory, then 'buy <item>' to purchase. Prices depend on your reputation here.",
+    "shop": "Use 'list' or 'shop' to browse my inventory. I've got weapons, armor, tools, and supplies. Everything you need for the Unflooded Sea.",
+    "sell": "Got something to sell? Use 'sell <item>' and I'll give you a fair price. Better prices if we're on good terms.",
+    "prices": "Prices are fair. They get better if people speak well of you. Worse if they don't. Reputation travels faster than ships around here.",
+    "repair": "I don't forge miracles, but I can patch dents, tighten straps, and keep your gear alive a bit longer. Use 'repair <item>' to fix your weapons or armor.",
+    "repairs": "I don't forge miracles, but I can patch dents, tighten straps, and keep your gear alive a bit longer. Use 'repair <item>' to fix your weapons or armor.",
+    "new cove": "New Cove's young, fragile, and trying not to die. We build fast, repair faster, and hope the sea floor stays quiet.",
+    "unflooded sea": "Raised ocean floor. Coral where trees should be. Kelp where roads should be. Plenty of things out there that chew through bad gear. Stock up before you wander.",
+    "magitium": "The Magitium Consortium? They sell answers wrapped in spells. Useful, sure — but they don't give credit. I do.",
+    "rumors": "Heard the guards found snapped spears near the wall last night. Not rot. Not rust. Something stronger."
+  },
+  "is_merchant": true,
+  "faction": "new_cove_merchants"
+}

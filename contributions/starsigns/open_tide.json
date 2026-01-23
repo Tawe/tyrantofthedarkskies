@@ -1,0 +1,17 @@
+{
+  "starsign_id": "open_tide",
+  "name": "The Open Tide",
+  "theme": "Change, travel, surrender to flow",
+  "description": "The Open Tide brings adaptability and acceptance of change. Those born under it flow through life's challenges like water over stones.",
+  "attribute_modifiers": {
+    "physical": 2,
+    "mental": -1,
+    "spiritual": 0,
+    "social": 0
+  },
+  "fated_mark": {
+    "name": "Easier disengagement from combat or environmental hazards",
+    "description": "You slip away from trouble as naturally as water flowing around obstacles."
+  },
+  "color": "cyan"
+}

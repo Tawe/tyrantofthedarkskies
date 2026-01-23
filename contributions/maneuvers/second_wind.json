@@ -1,0 +1,20 @@
+{
+  "maneuver_id": "second_wind",
+  "name": "Second Wind",
+  "tier": "Lower",
+  "description": "Recover a small amount of stamina or health. Survival instinct, no trainer required.",
+  "required_skills": {},
+  "required_level": 1,
+  "attributes": [
+    "physical",
+    "spiritual"
+  ],
+  "cost": {},
+  "cooldown": 0,
+  "effects": {
+    "success": "recover_stamina_health",
+    "critical": "recover_stamina_health + temporary_bonus",
+    "failure": "no_effect",
+    "critical_failure": "exhausted_1_turn"
+  }
+}

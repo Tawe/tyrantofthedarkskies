@@ -1,0 +1,17 @@
+{
+  "starsign_id": "deep_root",
+  "name": "The Deep Root",
+  "theme": "Patience, grounding, inevitability",
+  "description": "Rooted in ancient wisdom, those born under the Deep Root understand the slow, certain victory of time and nature.",
+  "attribute_modifiers": {
+    "physical": 0,
+    "mental": 0,
+    "spiritual": 2,
+    "social": -1
+  },
+  "fated_mark": {
+    "name": "Slight bonus to resisting forced movement or knockback",
+    "description": "Your connection to the earth makes you harder to move against your will."
+  },
+  "color": "brown"
+}

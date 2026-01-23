@@ -1,0 +1,23 @@
+{
+  "maneuver_id": "power_attack",
+  "name": "Power Attack",
+  "tier": "Mid",
+  "description": "A devastating blow that uses full strength but leaves you vulnerable.",
+  "required_skills": {
+    "fighting": 35
+  },
+  "required_level": 6,
+  "attributes": [
+    "physical"
+  ],
+  "cost": {
+    "stamina": 25
+  },
+  "cooldown": 2,
+  "effects": {
+    "success": "heavy_damage + vulnerable_1_turn",
+    "critical": "heavy_damage + knockdown + vulnerable_1_turn",
+    "failure": "exhausted_1_turn",
+    "critical_failure": "lose_balance + exhausted_2_turns"
+  }
+}

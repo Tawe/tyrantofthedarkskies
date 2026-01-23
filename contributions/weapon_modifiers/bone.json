@@ -1,0 +1,9 @@
+{
+  "id": "bone",
+  "name": "Bone",
+  "damage_bonus": 0,
+  "crit_bonus": 0.06,
+  "speed_multiplier": 1.0,
+  "durability_bonus": -30,
+  "notes": "Lightweight, brittle, common among tribal cultures"
+}

@@ -1,0 +1,8 @@
+{
+  "item_id": "lantern",
+  "name": "Lantern",
+  "description": "A reliable oil lantern for lighting dark places.",
+  "item_type": "item",
+  "value": 25,
+  "stats": {}
+}

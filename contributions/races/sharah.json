@@ -1,0 +1,22 @@
+{
+  "race_id": "sharah",
+  "name": "Sharah",
+  "description": "The Sharah are large, half-giant, rock-skinned humans who dwell in the high mountains. Their culture is deeply druidic, centered on stone, weather, and the long memory of the earth. They are slow to anger, but terrifying when roused.",
+  "cultural_traits": [
+    "Mountain-dwelling",
+    "Druidic traditions",
+    "Patient, enduring, and stoic"
+  ],
+  "attribute_modifiers": {
+    "physical": 1,
+    "mental": 0,
+    "spiritual": 1,
+    "social": -1
+  },
+  "free_points": 0,
+  "starting_skills": {
+    "climbing": 3,
+    "meditating": 2
+  },
+  "color": "gray"
+}

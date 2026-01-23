@@ -1,0 +1,17 @@
+{
+  "room_id": "city_barracks",
+  "name": "City Barracks",
+  "description": "Home to New Cove's guards and militia. The barracks serves as the center of law enforcement and combat training. Guard-related contracts are posted here, and the building stands as a symbol of the town's limited but determined defense.",
+  "exits": {
+    "southeast": "new_cove_square"
+  },
+  "items": [],
+  "npcs": [
+    "guard_captain"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

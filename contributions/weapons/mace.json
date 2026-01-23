@@ -1,0 +1,15 @@
+{
+  "id": "mace",
+  "name": "Mace",
+  "category": "Melee",
+  "class": "Mace",
+  "hands": 1,
+  "range": 0,
+  "damage_min": 4,
+  "damage_max": 6,
+  "damage_type": "bludgeoning",
+  "crit_chance": 0.15,
+  "speed_cost": 1.1,
+  "durability": 60,
+  "description": "A heavy one-handed weapon that crushes through defenses."
+}

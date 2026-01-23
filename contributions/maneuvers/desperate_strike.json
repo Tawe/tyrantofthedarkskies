@@ -1,0 +1,21 @@
+{
+  "maneuver_id": "desperate_strike",
+  "name": "Desperate Strike",
+  "tier": "Lower",
+  "description": "High-risk attack with increased critical chance. Leaves you exposed if it fails.",
+  "required_skills": {},
+  "required_level": 1,
+  "attributes": [
+    "physical"
+  ],
+  "cost": {
+    "stamina": 15
+  },
+  "cooldown": 2,
+  "effects": {
+    "success": "damage + increased_crit_chance",
+    "critical": "heavy_damage + critical_effect",
+    "failure": "exposed_1_turn",
+    "critical_failure": "exposed_2_turns + lose_balance"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "maneuver_id": "underflow_leap",
+  "name": "Underflow Leap",
+  "tier": "Lower",
+  "description": "Powerful leap that ignores terrain penalties. Enhanced when near water.",
+  "required_skills": {},
+  "required_level": 1,
+  "required_race": "toraelqui",
+  "attributes": [
+    "physical",
+    "spiritual"
+  ],
+  "cost": {
+    "stamina": 12
+  },
+  "cooldown": 2,
+  "effects": {
+    "success": "leap_ignore_terrain",
+    "critical": "leap_ignore_terrain + water_enhanced",
+    "failure": "stamina_cost_only",
+    "critical_failure": "landing_stumble"
+  }
+}

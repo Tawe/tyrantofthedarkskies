@@ -1,0 +1,8 @@
+{
+  "item_id": "repair_kit",
+  "name": "Repair Kit (Basic)",
+  "description": "Basic tools and materials for simple repairs.",
+  "item_type": "item",
+  "value": 35,
+  "stats": {}
+}

@@ -1,0 +1,12 @@
+# Python dependencies for Tyrant of the Dark Skies MUD Server
+
+# Firebase Admin SDK (for database migration and authentication)
+firebase-admin>=6.0.0
+
+# HTTP requests for Firebase REST API (password verification)
+requests>=2.28.0
+
+# WebSocket support for web client
+websockets>=11.0
+
+# Add other dependencies here as needed

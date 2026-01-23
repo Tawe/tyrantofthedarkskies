@@ -1,0 +1,15 @@
+{
+  "id": "pickaxe",
+  "name": "Pickaxe",
+  "category": "Melee",
+  "class": "Pick",
+  "hands": 1,
+  "range": 0,
+  "damage_min": 4,
+  "damage_max": 6,
+  "damage_type": "piercing",
+  "crit_chance": 0.22,
+  "speed_cost": 1.2,
+  "durability": 65,
+  "description": "A mining tool that doubles as a weapon, good for piercing armor."
+}

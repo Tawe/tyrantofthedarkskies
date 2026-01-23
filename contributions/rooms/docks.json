@@ -1,0 +1,19 @@
+{
+  "room_id": "docks",
+  "name": "The Docks",
+  "description": "Constantly active with ships arriving and departing. The docks are the lifeblood of New Cove, handling travel, trade, and sea-based contracts. The creaking of ships, calls of sailors, and the endless motion of the sea create a vibrant atmosphere. This is where you first arrived on the Refound Continent. Behind you, the lantern glow of the Black Anchor cuts through the mist at the edge of the pier.",
+  "exits": {
+    "west": "black_anchor_common",
+    "northwest": "governors_house",
+    "south": "wooden_wall"
+  },
+  "items": [],
+  "npcs": [
+    "dockmaster"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

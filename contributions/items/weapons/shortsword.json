@@ -1,0 +1,21 @@
+{
+  "item_id": "shortsword",
+  "name": "Shortsword",
+  "description": "A quick, light sword perfect for fast strikes.",
+  "item_type": "weapon",
+  "value": 76,
+  "stats": {},
+  "weapon_template_id": "shortsword",
+  "weapon_modifier_id": null,
+  "current_durability": 45,
+  "category": "Melee",
+  "weapon_class": "Sword",
+  "hands": 1,
+  "range": 0,
+  "damage_min": 3,
+  "damage_max": 4,
+  "damage_type": "piercing",
+  "crit_chance": 0.25,
+  "speed_cost": 0.9,
+  "max_durability": 45
+}

@@ -1,0 +1,22 @@
+{
+  "race_id": "jalitic",
+  "name": "Jalitic",
+  "description": "The Jalitic are an urban, scholarly race created through experiments conducted by an ancient wizard. Designed to survive and adapt, they became meticulous thinkers, archivists, and engineers rather than soldiers.",
+  "cultural_traits": [
+    "Urban and scholarly",
+    "Strong traditions of record-keeping and civic systems",
+    "Pragmatic, curious, and analytical"
+  ],
+  "attribute_modifiers": {
+    "physical": -1,
+    "mental": 1,
+    "spiritual": 0,
+    "social": 1
+  },
+  "free_points": 0,
+  "starting_skills": {
+    "investigating": 3,
+    "remembering": 2
+  },
+  "color": "purple"
+}

@@ -1,0 +1,22 @@
+{
+  "maneuver_id": "flowing_recovery",
+  "name": "Flowing Recovery",
+  "tier": "Lower",
+  "description": "Channel healing energy like flowing water.",
+  "required_skills": {},
+  "required_level": 1,
+  "planet": "lumeris",
+  "attributes": [
+    "spiritual"
+  ],
+  "cost": {
+    "mana": 15
+  },
+  "cooldown": 3,
+  "effects": {
+    "success": "heal_moderate + regen_bonus_3_turns",
+    "critical": "heal_heavy + cure_all_ailments + regen_bonus_5_turns",
+    "failure": "heal_light",
+    "critical_failure": "backlash_damage"
+  }
+}

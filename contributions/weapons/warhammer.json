@@ -1,0 +1,15 @@
+{
+  "id": "warhammer",
+  "name": "Warhammer",
+  "category": "Melee",
+  "class": "Hammer",
+  "hands": 2,
+  "range": 0,
+  "damage_min": 6,
+  "damage_max": 8,
+  "damage_type": "bludgeoning",
+  "crit_chance": 0.1,
+  "speed_cost": 1.4,
+  "durability": 70,
+  "description": "A massive two-handed hammer that deals devastating damage."
+}

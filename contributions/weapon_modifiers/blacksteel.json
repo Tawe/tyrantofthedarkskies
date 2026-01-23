@@ -1,0 +1,9 @@
+{
+  "id": "blacksteel",
+  "name": "Blacksteel",
+  "damage_bonus": 1,
+  "crit_bonus": 0.03,
+  "speed_multiplier": 1.1,
+  "durability_bonus": 40,
+  "notes": "Dense and durable alloy, rare and highly valued"
+}

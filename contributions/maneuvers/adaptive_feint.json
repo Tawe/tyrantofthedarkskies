@@ -1,0 +1,23 @@
+{
+  "maneuver_id": "adaptive_feint",
+  "name": "Adaptive Feint",
+  "tier": "Lower",
+  "description": "Gain a bonus on the next action after observing an enemy. Rewards versatility and timing.",
+  "required_skills": {},
+  "required_level": 1,
+  "required_race": "human",
+  "attributes": [
+    "mental",
+    "physical"
+  ],
+  "cost": {
+    "stamina": 5
+  },
+  "cooldown": 1,
+  "effects": {
+    "success": "bonus_next_action",
+    "critical": "bonus_next_action + insight_bonus",
+    "failure": "stamina_cost_only",
+    "critical_failure": "misread_situation"
+  }
+}

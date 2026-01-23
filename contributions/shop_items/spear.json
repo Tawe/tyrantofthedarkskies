@@ -1,0 +1,9 @@
+{
+  "item_id": "spear",
+  "name": "Spear",
+  "description": "A two-handed polearm with extended reach.",
+  "item_type": "weapon",
+  "value": 110,
+  "weapon_template_id": "spear",
+  "weapon_modifier_id": null
+}

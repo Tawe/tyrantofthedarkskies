@@ -1,0 +1,17 @@
+{
+  "room_id": "crabfolk_settlement",
+  "name": "Crabfolk Settlement",
+  "description": "A settlement of the mysterious Crabfolk, who are said to farm snails using ancient techniques. The structures are built from coral and stone, blending naturally with the Rift Forest. The inhabitants move with purpose, and you see evidence of their unique farming methods.",
+  "exits": {
+    "west": "rift_forest"
+  },
+  "items": [],
+  "npcs": [
+    "crabfolk_elder"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

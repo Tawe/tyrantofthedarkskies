@@ -1,0 +1,35 @@
+{
+  "npc_id": "goblin",
+  "name": "Goblin",
+  "description": "A nasty looking goblin with sharp teeth.",
+  "health": 30,
+  "max_health": 30,
+  "mana": 25,
+  "max_mana": 25,
+  "stamina": 50,
+  "max_stamina": 50,
+  "attributes": {
+    "physical": 10,
+    "mental": 10,
+    "spiritual": 10,
+    "social": 10
+  },
+  "skills": {},
+  "combat_role": null,
+  "tier": "Low",
+  "level": 1,
+  "exp_value": 0,
+  "known_maneuvers": [],
+  "active_maneuvers": [],
+  "equipped": {},
+  "is_hostile": true,
+  "combat_state": "Observing",
+  "loot_table": [],
+  "outlooks": {},
+  "faction_outlooks": {},
+  "dialogue": [],
+  "inventory": [
+    "potion",
+    "gold"
+  ]
+}

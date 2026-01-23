@@ -1,0 +1,28 @@
+{
+  "planet_id": "aurelion",
+  "name": "Aurelion — The Gilded Judge",
+  "theme": "Order, authority, clarity of purpose",
+  "cosmic_role": "Watcher of oaths, laws, and rightful action",
+  "description": "Passionate and aggressive, fire-aligned characters excel at offense and risk-taking.",
+  "attribute_bonuses": {
+    "physical": 1,
+    "mental": 0,
+    "spiritual": 2,
+    "social": 0
+  },
+  "starting_skills": {
+    "fighting": 5,
+    "intimidating": 5,
+    "smithing": 3
+  },
+  "gift_maneuver": "judging_strike",
+  "passive_effect": "Increased effectiveness when acting decisively or upholding rules",
+  "passive_description": "Deal extra damage to enemies who have acted recently. Combat bonuses when enforcing justice.",
+  "color": "yellow",
+  "tier_scaling": {
+    "low": "Bonus damage against enemies who acted first",
+    "mid": "Improved accuracy against marked targets",
+    "high": "Allies gain minor bonuses when following your lead",
+    "epic": "Once per day, declare a target 'Judged' — all allies gain bonuses against it"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "room_id": "jalia_goods",
+  "name": "Jalia's Goods",
+  "description": "A cramped but meticulously organized shop. Shelves are stocked with basic weapons and armor, tools and supplies, rations, rope, and lamps. The shopkeeper Jalia keeps a limited rotating inventory, and prices are influenced by reputation with local factions.",
+  "exits": {
+    "west": "new_cove_square"
+  },
+  "items": [
+    "potion"
+  ],
+  "npcs": [
+    "jalia"
+  ],
+  "flags": [
+    "safe",
+    "shop"
+  ],
+  "combat_tags": []
+}

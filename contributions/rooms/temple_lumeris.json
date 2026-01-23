@@ -1,0 +1,15 @@
+{
+  "room_id": "temple_lumeris",
+  "name": "Temple of Lumeris - The Hall of Change",
+  "description": "A serene structure of pale stone and flowing water channels. The temple serves as a place of spiritual communion, healing, and blessings. Followers of Lumeris gather here for meditation and reflection. The atmosphere is peaceful and neutral, respected by most factions.",
+  "exits": {
+    "east": "new_cove_square"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": [
+    "safe",
+    "healing"
+  ],
+  "combat_tags": []
+}

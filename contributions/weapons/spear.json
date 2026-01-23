@@ -1,0 +1,15 @@
+{
+  "id": "spear",
+  "name": "Spear",
+  "category": "Melee",
+  "class": "Spear",
+  "hands": 2,
+  "range": 1,
+  "damage_min": 4,
+  "damage_max": 6,
+  "damage_type": "piercing",
+  "crit_chance": 0.2,
+  "speed_cost": 1.1,
+  "durability": 55,
+  "description": "A two-handed polearm with extended reach."
+}

@@ -1,0 +1,16 @@
+{
+  "item_id": "wooden_shield",
+  "name": "Wooden Shield",
+  "description": "A simple wooden shield for basic defense.",
+  "item_type": "armor",
+  "value": 60,
+  "armor_type": "light",
+  "damage_reduction": {
+    "slashing": 1,
+    "piercing": 1,
+    "bludgeoning": 1
+  },
+  "armor_slots": [
+    "offhand"
+  ]
+}

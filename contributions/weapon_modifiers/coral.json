@@ -1,0 +1,10 @@
+{
+  "id": "coral",
+  "name": "Coral",
+  "damage_bonus": 0,
+  "crit_bonus": 0.04,
+  "speed_multiplier": 1.0,
+  "durability_bonus": -10,
+  "damage_type_override": "piercing",
+  "notes": "Favored by Unflooded Sea cultures, serrated and sharp"
+}

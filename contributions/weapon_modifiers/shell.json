@@ -1,0 +1,9 @@
+{
+  "id": "shell",
+  "name": "Shell",
+  "damage_bonus": 0,
+  "crit_bonus": 0.03,
+  "speed_multiplier": 1.0,
+  "durability_bonus": 10,
+  "notes": "Resilient organic material used by coastal and Crabfolk cultures"
+}

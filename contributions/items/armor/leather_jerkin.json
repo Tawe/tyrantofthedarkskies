@@ -1,0 +1,17 @@
+{
+  "item_id": "leather_jerkin",
+  "name": "Leather Jerkin",
+  "description": "Sturdy leather armor, well-worn but reliable.",
+  "item_type": "armor",
+  "value": 120,
+  "stats": {},
+  "armor_type": "light",
+  "damage_reduction": {
+    "slashing": 2,
+    "piercing": 2,
+    "bludgeoning": 1
+  },
+  "armor_slots": [
+    "body"
+  ]
+}

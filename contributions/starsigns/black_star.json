@@ -1,0 +1,17 @@
+{
+  "starsign_id": "black_star",
+  "name": "The Black Star",
+  "theme": "Loss, inevitability, grim resolve",
+  "description": "The Black Star marks those destined for hardship and struggle. While they suffer more, they cannot be broken by what would destroy others.",
+  "attribute_modifiers": {
+    "physical": 0,
+    "mental": 0,
+    "spiritual": 2,
+    "social": -1
+  },
+  "fated_mark": {
+    "name": "Reduced impact from fear or necrotic effects",
+    "description": "You resist the corrupting influence that breaks lesser souls."
+  },
+  "color": "dark_red"
+}

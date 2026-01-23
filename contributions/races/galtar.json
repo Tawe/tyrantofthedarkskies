@@ -1,0 +1,22 @@
+{
+  "race_id": "galtar",
+  "name": "Gal'tar",
+  "description": "The Gal'tar are a disciplined, militaristic people who live by a strict code of honor, hierarchy, and service. Their society values obedience, preparation, and mastery of arms, blending martial rigor with philosophical restraint.",
+  "cultural_traits": [
+    "Highly regimented society",
+    "Code-driven honor culture",
+    "Strong emphasis on training and discipline"
+  ],
+  "attribute_modifiers": {
+    "physical": 1,
+    "mental": 1,
+    "spiritual": 0,
+    "social": -1
+  },
+  "free_points": 0,
+  "starting_skills": {
+    "fighting": 3,
+    "intimidating": 2
+  },
+  "color": "red"
+}

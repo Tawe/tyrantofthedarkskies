@@ -1,0 +1,27 @@
+{
+  "room_id": "new_cove_square",
+  "name": "New Cove Town Square",
+  "description": "The central square of New Cove, a young pragmatic settlement built quickly for survival. Wooden structures dominate, reinforced by scavenged stone and shipwreck materials. The town exists at the edge of the known world. People move with purpose here, and the air carries the scent of the sea and fresh-cut timber. From the south, the muffled noise of the Black Anchor drifts into the open air.",
+  "exits": {
+    "north": "governors_house",
+    "east": "jalia_goods",
+    "south": {
+      "target": "black_anchor_common",
+      "door": {
+        "name": "a heavy wooden door",
+        "description": "The door is closed, blocking your view of the tavern beyond."
+      }
+    },
+    "west": "temple_lumeris",
+    "northwest": "city_barracks",
+    "northeast": "magitium_outpost",
+    "southwest": "wooden_wall"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

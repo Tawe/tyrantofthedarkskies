@@ -1,0 +1,17 @@
+{
+  "starsign_id": "storm_eye",
+  "name": "The Storm Eye",
+  "theme": "Chaos mastered, clarity under pressure",
+  "description": "The Storm Eye brings chaos tempered by wisdom. Those born under it see patterns in madness and find clarity in the eye of the storm.",
+  "attribute_modifiers": {
+    "physical": 2,
+    "mental": 0,
+    "spiritual": -1,
+    "social": 0
+  },
+  "fated_mark": {
+    "name": "Improved performance when outnumbered or surrounded",
+    "description": "When facing impossible odds, your hidden potential awakens."
+  },
+  "color": "purple_red"
+}

@@ -1,0 +1,28 @@
+{
+  "planet_id": "nyssara",
+  "name": "Nyssara — The Veiled Wanderer",
+  "theme": "Adaptation, secrecy, survival through motion",
+  "cosmic_role": "Patron of travelers, scouts, and the unseen",
+  "description": "Quick and clever, air-aligned characters excel at speed and mental tasks.",
+  "attribute_bonuses": {
+    "physical": 0,
+    "mental": 2,
+    "spiritual": 1,
+    "social": 1
+  },
+  "starting_skills": {
+    "dodging": 5,
+    "investigating": 5,
+    "persuading": 3
+  },
+  "gift_maneuver": "shadow_stepping",
+  "passive_effect": "Bonuses when repositioning, escaping, or striking unexpectedly",
+  "passive_description": "Combat advantages when moving, disengaging, or attacking from surprise.",
+  "color": "white",
+  "tier_scaling": {
+    "low": "Increased success when disengaging",
+    "mid": "First strike after movement gains bonus accuracy",
+    "high": "Brief invisibility after successful escapes",
+    "epic": "Once per day, fully evade a fatal outcome"
+  }
+}

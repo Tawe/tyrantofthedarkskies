@@ -1,0 +1,22 @@
+{
+  "maneuver_id": "calculated_action",
+  "name": "Calculated Action",
+  "tier": "Lower",
+  "description": "Delay action to gain accuracy or insight. Encourages planning over brute force.",
+  "required_skills": {},
+  "required_level": 1,
+  "required_race": "jalitic",
+  "attributes": [
+    "mental"
+  ],
+  "cost": {
+    "time": 1
+  },
+  "cooldown": 1,
+  "effects": {
+    "success": "accuracy_bonus + insight",
+    "critical": "accuracy_bonus + deep_insight",
+    "failure": "time_cost_only",
+    "critical_failure": "overthink_situation"
+  }
+}

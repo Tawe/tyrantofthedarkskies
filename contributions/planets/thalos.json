@@ -1,0 +1,28 @@
+{
+  "planet_id": "thalos",
+  "name": "Thalos — The Deep Resonance",
+  "theme": "Balance, pressure, inevitability",
+  "cosmic_role": "Guardian of depth, gravity, and crushing forces",
+  "description": "Heavy and enduring, thalos-aligned characters resist force and excel at absorbing punishment.",
+  "attribute_bonuses": {
+    "physical": 2,
+    "mental": 0,
+    "spiritual": 0,
+    "social": 0
+  },
+  "starting_skills": {
+    "fighting": 5,
+    "climbing": 5,
+    "smithing": 3
+  },
+  "gift_maneuver": "gravitic_grasping",
+  "passive_effect": "Resistance to force, crushing, and falling damage",
+  "passive_description": "Reduced damage from physical attacks and immunity to crushing/gravity effects.",
+  "color": "gray",
+  "tier_scaling": {
+    "low": "Minor damage reduction from physical forces",
+    "mid": "Enemies suffer penalties when restrained",
+    "high": "Area effects slow or pin foes",
+    "epic": "Create zones of altered gravity"
+  }
+}

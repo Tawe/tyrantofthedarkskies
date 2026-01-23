@@ -1,0 +1,15 @@
+{
+  "id": "dagger",
+  "name": "Dagger",
+  "category": "Melee",
+  "class": "Dagger",
+  "hands": 1,
+  "range": 0,
+  "damage_min": 2,
+  "damage_max": 3,
+  "damage_type": "piercing",
+  "crit_chance": 0.35,
+  "speed_cost": 0.7,
+  "durability": 30,
+  "description": "A small, fast blade with high critical hit potential."
+}

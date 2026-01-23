@@ -1,0 +1,17 @@
+{
+  "starsign_id": "ash_serpent",
+  "name": "The Ash Serpent",
+  "theme": "Endurance through pain, slow-burning resolve",
+  "description": "Those born under the Ash Serpent weather all hardships with stubborn determination. They possess an inner fire that cannot be extinguished.",
+  "attribute_modifiers": {
+    "physical": 2,
+    "mental": 0,
+    "spiritual": -1,
+    "social": 0
+  },
+  "fated_mark": {
+    "name": "Minor resistance to Fire damage at night",
+    "description": "When in darkness or facing fire, your skin toughens against flames."
+  },
+  "color": "orange"
+}

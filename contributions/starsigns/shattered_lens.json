@@ -1,0 +1,17 @@
+{
+  "starsign_id": "shattered_lens",
+  "name": "The Shattered Lens",
+  "theme": "Insight, obsession, seeing too much",
+  "description": "The Shattered Lens grants perception beyond normal limits, but can drive its bearers to madness with forbidden knowledge.",
+  "attribute_modifiers": {
+    "physical": 0,
+    "mental": 2,
+    "spiritual": 0,
+    "social": -1
+  },
+  "fated_mark": {
+    "name": "Improved ability to notice hidden details or inconsistencies",
+    "description": "You notice things others miss - loose threads, hidden doors, subtle lies. This insight can save your life or damn it."
+  },
+  "color": "purple"
+}

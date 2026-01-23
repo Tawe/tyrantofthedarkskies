@@ -1,0 +1,10 @@
+{
+  "item_id": "healing_potion",
+  "name": "Simple Healing Potion",
+  "description": "A basic healing potion that restores health.",
+  "item_type": "consumable",
+  "value": 50,
+  "stats": {
+    "heal": 25
+  }
+}

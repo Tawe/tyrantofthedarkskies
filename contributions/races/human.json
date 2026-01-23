@@ -1,0 +1,19 @@
+{
+  "race_id": "human",
+  "name": "Human",
+  "description": "Humans are adaptable generalists found throughout the world. Their cultures are diverse, and their greatest strength is flexibility rather than specialization.",
+  "cultural_traits": [
+    "Highly adaptable",
+    "Diverse beliefs and professions",
+    "No single dominant culture"
+  ],
+  "attribute_modifiers": {
+    "physical": 0,
+    "mental": 0,
+    "spiritual": 0,
+    "social": 0
+  },
+  "free_points": 2,
+  "starting_skills": {},
+  "color": "white"
+}

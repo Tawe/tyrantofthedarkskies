@@ -1,0 +1,24 @@
+{
+  "maneuver_id": "shield_bash",
+  "name": "Shield Bash",
+  "tier": "Lower",
+  "description": "Bash an opponent with your shield to potentially stagger them.",
+  "required_skills": {
+    "fighting": 15
+  },
+  "required_level": 1,
+  "planet": "veyra",
+  "attributes": [
+    "physical"
+  ],
+  "cost": {
+    "stamina": 10
+  },
+  "cooldown": 0,
+  "effects": {
+    "success": "damage + stagger",
+    "critical": "damage + knockdown",
+    "failure": "miss",
+    "critical_failure": "lose_balance"
+  }
+}

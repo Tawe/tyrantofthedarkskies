@@ -1,0 +1,16 @@
+{
+  "item_id": "padded_armor",
+  "name": "Padded Armor Vest",
+  "description": "Basic padded protection, better than nothing.",
+  "item_type": "armor",
+  "value": 75,
+  "armor_type": "light",
+  "damage_reduction": {
+    "slashing": 1,
+    "piercing": 1,
+    "bludgeoning": 2
+  },
+  "armor_slots": [
+    "body"
+  ]
+}

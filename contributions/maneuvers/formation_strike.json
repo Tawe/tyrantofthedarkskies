@@ -1,0 +1,23 @@
+{
+  "maneuver_id": "formation_strike",
+  "name": "Formation Strike",
+  "tier": "Lower",
+  "description": "Bonus damage when allies are adjacent. Scales with discipline and positioning.",
+  "required_skills": {},
+  "required_level": 1,
+  "required_race": "galtar",
+  "attributes": [
+    "physical",
+    "social"
+  ],
+  "cost": {
+    "stamina": 10
+  },
+  "cooldown": 1,
+  "effects": {
+    "success": "damage + formation_bonus",
+    "critical": "heavy_damage + formation_bonus + ally_bonus",
+    "failure": "light_damage",
+    "critical_failure": "break_formation"
+  }
+}

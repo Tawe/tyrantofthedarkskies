@@ -1,0 +1,32 @@
+{
+  "room_id": "black_anchor_common",
+  "name": "The Black Anchor - Common Room",
+  "description": "A squat, weather-beaten tavern built from dark driftwood and iron fittings reclaimed from wrecked ships. The smell of salt, ale, and wet rope fills the air. Lanterns sway constantly, even when there is no wind. A heavy door to the east opens directly onto the docks, and the low murmur of sailors mixes with the scrape of chairs on warped planks. This is the heart of New Cove's only entertainment spot—and the front face of the Adventurers' Guild Hall.",
+  "exits": {
+    "north": {
+      "target": "new_cove_square",
+      "door": {
+        "name": "a heavy wooden door",
+        "description": "The door is closed, blocking your view of the town square beyond."
+      }
+    },
+    "east": {
+      "target": "docks",
+      "door": {
+        "name": "a heavy wooden door",
+        "description": "The door is closed, blocking your view of the town square beyond."
+      }
+    },
+    "west": "black_anchor_guild"
+  },
+  "items": [],
+  "npcs": [
+    "innkeeper_bram",
+    "weathered_sailor"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

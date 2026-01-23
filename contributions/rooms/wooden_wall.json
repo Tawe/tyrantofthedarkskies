@@ -1,0 +1,19 @@
+{
+  "room_id": "wooden_wall",
+  "name": "The Wooden Wall",
+  "description": "A hastily constructed palisade surrounding New Cove. The wall is a symbol of fragility and frontier living, regularly tested by wildlife and unknown threats from the Unflooded Sea beyond. Guards patrol the top, and a gate leads outside to the wilderness.",
+  "exits": {
+    "north": "new_cove_square",
+    "northeast": "docks",
+    "south": "unflooded_sea"
+  },
+  "items": [],
+  "npcs": [
+    "wall_guard"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

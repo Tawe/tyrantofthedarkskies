@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tyrant of the Dark Skies - Web Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #header {
+            background: #111;
+            padding: 10px;
+            border-bottom: 2px solid #0f0;
+            text-align: center;
+        }
+        
+        #header h1 {
+            color: #0f0;
+            font-size: 1.5em;
+        }
+        
+        #status {
+            padding: 5px 10px;
+            background: #111;
+            border-bottom: 1px solid #0f0;
+            font-size: 0.9em;
+        }
+        
+        #status.connected {
+            color: #0f0;
+        }
+        
+        #status.disconnected {
+            color: #f00;
+        }
+        
+        #status.connecting {
+            color: #ff0;
+        }
+        
+        #output {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background: #000;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: pre-wrap; /* Preserve newlines and wrap text */
+        }
+        
+        #output::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        #output::-webkit-scrollbar-track {
+            background: #111;
+        }
+        
+        #output::-webkit-scrollbar-thumb {
+            background: #0f0;
+            border-radius: 5px;
+        }
+        
+        #input-container {
+            display: flex;
+            padding: 10px;
+            background: #111;
+            border-top: 2px solid #0f0;
+        }
+        
+        #input {
+            flex: 1;
+            background: #000;
+            border: 1px solid #0f0;
+            color: #0f0;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        #input:focus {
+            border-color: #0ff;
+            box-shadow: 0 0 5px #0ff;
+        }
+        
+        #send-btn {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        #send-btn:hover {
+            background: #0ff;
+        }
+        
+        #send-btn:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        
+        #config {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #111;
+            border: 2px solid #0f0;
+            padding: 20px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        #config.visible {
+            display: block;
+        }
+        
+        #config input {
+            background: #000;
+            border: 1px solid #0f0;
+            color: #0f0;
+            padding: 8px;
+            margin: 5px 0;
+            width: 100%;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #config button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin-top: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        .ansi-black { color: #000; }
+        .ansi-red { color: #f00; }
+        .ansi-green { color: #0f0; }
+        .ansi-yellow { color: #ff0; }
+        .ansi-blue { color: #00f; }
+        .ansi-magenta { color: #f0f; }
+        .ansi-cyan { color: #0ff; }
+        .ansi-white { color: #fff; }
+        .ansi-bold { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>⚔️ Tyrant of the Dark Skies ⚔️</h1>
+    </div>
+    <div id="status" class="disconnected">Disconnected</div>
+    <div id="output"></div>
+    <div id="input-container">
+        <input type="text" id="input" placeholder="Enter command..." autocomplete="off" disabled>
+        <button id="send-btn" disabled>Send</button>
+    </div>
+    
+    <div id="config">
+        <h3 style="color: #0f0; margin-bottom: 15px;">Server Configuration</h3>
+        <label style="color: #0f0;">WebSocket Server:</label>
+        <input type="text" id="ws-url" placeholder="ws://localhost:5557" value="ws://localhost:5557">
+        <button onclick="connect()">Connect</button>
+    </div>
+    
+    <script>
+        let ws = null;
+        let commandHistory = [];
+        let historyIndex = -1;
+        
+        const output = document.getElementById('output');
+        const input = document.getElementById('input');
+        const sendBtn = document.getElementById('send-btn');
+        const status = document.getElementById('status');
+        const config = document.getElementById('config');
+        
+        // Show config on load
+        window.addEventListener('load', () => {
+            const savedUrl = localStorage.getItem('ws-url');
+            if (savedUrl) {
+                document.getElementById('ws-url').value = savedUrl;
+            }
+            config.classList.add('visible');
+        });
+        
+        function addOutput(text, className = '') {
+            const div = document.createElement('div');
+            div.className = className;
+            // Server sends HTML for brackets, so we use innerHTML to render it
+            // white-space: pre-wrap in CSS will preserve newlines and wrap text
+            div.innerHTML = text;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function updateStatus(text, className) {
+            status.textContent = text;
+            status.className = className;
+        }
+        
+        function connect() {
+            const url = document.getElementById('ws-url').value || 'ws://localhost:5557';
+            localStorage.setItem('ws-url', url);
+            config.classList.remove('visible');
+            
+            updateStatus('Connecting...', 'connecting');
+            ws = new WebSocket(url);
+            
+            ws.onopen = () => {
+                updateStatus('Connected', 'connected');
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
+                addOutput('Connected to server!', 'ansi-green');
+            };
+            
+            ws.onmessage = (event) => {
+                addOutput(event.data);
+            };
+            
+            ws.onerror = (error) => {
+                addOutput('Connection error occurred.', 'ansi-red');
+                updateStatus('Error', 'disconnected');
+            };
+            
+            ws.onclose = () => {
+                updateStatus('Disconnected', 'disconnected');
+                input.disabled = true;
+                sendBtn.disabled = true;
+                addOutput('Disconnected from server.', 'ansi-red');
+                // Show config again after 2 seconds
+                setTimeout(() => {
+                    config.classList.add('visible');
+                }, 2000);
+            };
+        }
+        
+        function sendCommand() {
+            const command = input.value.trim();
+            if (!command || !ws || ws.readyState !== WebSocket.OPEN) {
+                return;
+            }
+            
+            // Add to history
+            if (command && command !== commandHistory[commandHistory.length - 1]) {
+                commandHistory.push(command);
+                if (commandHistory.length > 100) {
+                    commandHistory.shift();
+                }
+            }
+            historyIndex = -1;
+            
+            // Echo command
+            addOutput(`> ${command}`, 'ansi-cyan');
+            
+            // Send to server
+            ws.send(command);
+            input.value = '';
+        }
+        
+        // Send button
+        sendBtn.addEventListener('click', sendCommand);
+        
+        // Enter key
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendCommand();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (commandHistory.length > 0) {
+                    if (historyIndex === -1) {
+                        historyIndex = commandHistory.length;
+                    }
+                    historyIndex = Math.max(0, historyIndex - 1);
+                    input.value = commandHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex >= 0) {
+                    historyIndex++;
+                    if (historyIndex >= commandHistory.length) {
+                        historyIndex = -1;
+                        input.value = '';
+                    } else {
+                        input.value = commandHistory[historyIndex];
+                    }
+                }
+            }
+        });
+        
+        // Auto-focus input
+        document.addEventListener('click', () => {
+            if (!input.disabled) {
+                input.focus();
+            }
+        });
+    </script>
+</body>
+</html>

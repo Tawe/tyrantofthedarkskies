@@ -1,0 +1,25 @@
+{
+  "maneuver_id": "flurry",
+  "name": "Flurry",
+  "tier": "Mid",
+  "description": "A rapid series of attacks that can overwhelm defenses.",
+  "required_skills": {
+    "fighting": 30,
+    "dodging": 25
+  },
+  "required_level": 6,
+  "attributes": [
+    "physical",
+    "mental"
+  ],
+  "cost": {
+    "stamina": 30
+  },
+  "cooldown": 3,
+  "effects": {
+    "success": "3_light_attacks",
+    "critical": "4_attacks + final_heavy",
+    "failure": "1_light_attack + exhausted",
+    "critical_failure": "stumble + vulnerable_2_turns"
+  }
+}

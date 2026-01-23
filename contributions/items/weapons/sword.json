@@ -1,0 +1,23 @@
+{
+  "item_id": "sword",
+  "name": "Iron Sword",
+  "description": "A sturdy iron sword suitable for combat.",
+  "item_type": "weapon",
+  "value": 25,
+  "stats": {
+    "damage": 5
+  },
+  "weapon_template_id": null,
+  "weapon_modifier_id": null,
+  "current_durability": null,
+  "category": null,
+  "weapon_class": null,
+  "hands": 1,
+  "range": 0,
+  "damage_min": 0,
+  "damage_max": 0,
+  "damage_type": null,
+  "crit_chance": 0.0,
+  "speed_cost": 1.0,
+  "max_durability": 50
+}

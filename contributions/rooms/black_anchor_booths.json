@@ -1,0 +1,18 @@
+{
+  "room_id": "black_anchor_booths",
+  "name": "The Black Anchor - Back Booths",
+  "description": "Low wooden booths line the walls of this dim back room, each partially shielded by hanging canvas and old sailcloth. Conversations here are quieter and more deliberate. You catch fragments of talk about lost ruins, dangerous routes, and opportunities that never make it onto the guild board.",
+  "exits": {
+    "east": "black_anchor_guild"
+  },
+  "items": [],
+  "npcs": [
+    "hooded_patron",
+    "magitium_agent"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

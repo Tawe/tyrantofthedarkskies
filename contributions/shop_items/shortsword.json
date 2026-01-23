@@ -1,0 +1,9 @@
+{
+  "item_id": "shortsword",
+  "name": "Shortsword",
+  "description": "A quick, light sword perfect for fast strikes.",
+  "item_type": "weapon",
+  "value": 90,
+  "weapon_template_id": "shortsword",
+  "weapon_modifier_id": null
+}

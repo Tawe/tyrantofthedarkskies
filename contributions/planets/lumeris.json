@@ -1,0 +1,28 @@
+{
+  "planet_id": "lumeris",
+  "name": "Lumeris — The Silent Current",
+  "theme": "Flow, renewal, inevitability of change",
+  "cosmic_role": "Patron of water, air, and unseen movement",
+  "description": "Adaptive and healing, water-aligned characters excel at restoration and support.",
+  "attribute_bonuses": {
+    "physical": 0,
+    "mental": 1,
+    "spiritual": 2,
+    "social": 1
+  },
+  "starting_skills": {
+    "brewing": 5,
+    "meditating": 5,
+    "persuading": 3
+  },
+  "gift_maneuver": "flowing_recovery",
+  "passive_effect": "Enhanced recovery and resistance to environmental hazards",
+  "passive_description": "Faster stamina/mana regeneration and resistance to poison, drowning, and environmental damage.",
+  "color": "blue",
+  "tier_scaling": {
+    "low": "Faster stamina or mana recovery",
+    "mid": "Resistance to choking and drowning",
+    "high": "Regenerate slowly while moving",
+    "epic": "Convert environmental damage into healing"
+  }
+}

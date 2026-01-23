@@ -1,0 +1,22 @@
+{
+  "maneuver_id": "focused_breath",
+  "name": "Focused Breath",
+  "tier": "Lower",
+  "description": "Regain stamina or mana over time through controlled breathing. Teachable by monks, sailors, and elders.",
+  "required_skills": {},
+  "required_level": 1,
+  "attributes": [
+    "spiritual",
+    "mental"
+  ],
+  "cost": {
+    "time": 1
+  },
+  "cooldown": 0,
+  "effects": {
+    "success": "regen_stamina_mana_over_time",
+    "critical": "regen_stamina_mana_over_time + focus_bonus",
+    "failure": "stamina_cost_only",
+    "critical_failure": "distracted_1_turn"
+  }
+}

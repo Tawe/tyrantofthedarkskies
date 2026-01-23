@@ -1,0 +1,17 @@
+{
+  "room_id": "ancient_ruins",
+  "name": "Ancient Ruins",
+  "description": "Partially buried ruins of an ancient civilization, their purpose lost to time. Coral stone and silt have claimed much of the structure, but you can make out intricate carvings and the remains of what might have been a temple or palace. The air feels heavy with history and mystery.",
+  "exits": {
+    "east": "unflooded_sea"
+  },
+  "items": [
+    "ancient_relic"
+  ],
+  "npcs": [],
+  "flags": [
+    "dangerous",
+    "dark"
+  ],
+  "combat_tags": []
+}

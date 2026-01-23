@@ -1,0 +1,17 @@
+{
+  "starsign_id": "veiled_moon",
+  "name": "The Veiled Moon",
+  "theme": "Secrets, quiet influence, unseen paths",
+  "description": "The Veiled Moon hides its children in shadow and mystery. Those born under it move through life unnoticed, gathering secrets others cannot find.",
+  "attribute_modifiers": {
+    "physical": 0,
+    "mental": 2,
+    "spiritual": 0,
+    "social": -1
+  },
+  "fated_mark": {
+    "name": "Slight bonus when acting from concealment or anonymity",
+    "description": "Your hidden actions are more effective and harder to trace."
+  },
+  "color": "dark_blue"
+}

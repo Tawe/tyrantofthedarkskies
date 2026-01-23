@@ -1,0 +1,15 @@
+{
+  "room_id": "rift_forest",
+  "name": "Rift Forest",
+  "description": "A strange forest of twisted coral-like growths and stone spires that rise from the ancient sea floor. The formations create natural pathways and hiding places. Strange sounds echo through the coral structures, and you catch glimpses of movement in the shadows.",
+  "exits": {
+    "west": "unflooded_sea",
+    "east": "crabfolk_settlement"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": [
+    "dangerous"
+  ],
+  "combat_tags": []
+}

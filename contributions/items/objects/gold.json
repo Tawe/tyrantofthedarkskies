@@ -1,0 +1,8 @@
+{
+  "item_id": "gold",
+  "name": "Gold Coins",
+  "description": "Shiny gold coins.",
+  "item_type": "item",
+  "value": 1,
+  "stats": {}
+}

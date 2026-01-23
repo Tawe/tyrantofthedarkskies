@@ -1,0 +1,22 @@
+{
+  "race_id": "dwarf",
+  "name": "Dwarf",
+  "description": "Unlike their landbound cousins of other worlds, these Dwarves are a seafaring people with an almost spiritual call to the ocean. They are known for their warmth, storytelling, and strong communal bonds.",
+  "cultural_traits": [
+    "Seafaring and coastal settlements",
+    "Strong oral traditions",
+    "Open and social communities"
+  ],
+  "attribute_modifiers": {
+    "physical": 1,
+    "mental": 0,
+    "spiritual": -1,
+    "social": 1
+  },
+  "free_points": 0,
+  "starting_skills": {
+    "smithing": 3,
+    "persuading": 2
+  },
+  "color": "blue"
+}

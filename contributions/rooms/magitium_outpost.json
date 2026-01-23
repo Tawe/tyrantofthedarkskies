@@ -1,0 +1,17 @@
+{
+  "room_id": "magitium_outpost",
+  "name": "Magitium Outpost",
+  "description": "A compact stone-and-brass structure flying the sigil of the Magitium Consortium - a guild of merchant mages. The outpost offers magical tomes and scrolls, minor enchanted items, and arcane services like identification and minor enchantments. Access is limited for those with low reputation.",
+  "exits": {
+    "southwest": "new_cove_square"
+  },
+  "items": [],
+  "npcs": [
+    "magitium_mage"
+  ],
+  "flags": [
+    "safe",
+    "shop"
+  ],
+  "combat_tags": []
+}

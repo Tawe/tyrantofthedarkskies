@@ -1,0 +1,20 @@
+{
+  "room_id": "black_anchor_guild",
+  "name": "The Black Anchor - Guild Board Alcove",
+  "description": "This quieter alcove has been reinforced with iron brackets and thick planks. A large notice board dominates the far wall, covered in contracts, bounties, and expedition postings. Wax-sealed letters and official notices suggest interest from nobles, merchants, and distant powers. A narrow desk sits nearby where guild business is recorded, its ink stained by constant use.",
+  "exits": {
+    "east": "black_anchor_common",
+    "west": "black_anchor_booths"
+  },
+  "items": [
+    "contract_board"
+  ],
+  "npcs": [
+    "guild_clerk"
+  ],
+  "flags": [
+    "safe",
+    "public"
+  ],
+  "combat_tags": []
+}

@@ -1,0 +1,35 @@
+{
+  "npc_id": "kelp_flea_2",
+  "name": "Kelp Flea",
+  "description": "A small, skittering creature with hard chitinous plates and sharp mandibles. It moves in quick, jerky motions across the hardened kelp fronds.",
+  "health": 15,
+  "max_health": 15,
+  "mana": 10,
+  "max_mana": 10,
+  "stamina": 30,
+  "max_stamina": 30,
+  "attributes": {
+    "physical": 8,
+    "mental": 6,
+    "spiritual": 6,
+    "social": 6
+  },
+  "skills": {
+    "fighting": 5,
+    "dodging": 8
+  },
+  "combat_role": "Minion",
+  "tier": "Low",
+  "level": 1,
+  "exp_value": 5,
+  "known_maneuvers": [],
+  "active_maneuvers": [],
+  "equipped": {},
+  "is_hostile": true,
+  "combat_state": "Observing",
+  "loot_table": [],
+  "outlooks": {},
+  "faction_outlooks": {},
+  "dialogue": [],
+  "inventory": []
+}

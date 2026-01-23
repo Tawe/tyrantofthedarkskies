@@ -1,0 +1,15 @@
+{
+  "id": "longsword",
+  "name": "Longsword",
+  "category": "Melee",
+  "class": "Sword",
+  "hands": 1,
+  "range": 0,
+  "damage_min": 4,
+  "damage_max": 5,
+  "damage_type": "slashing",
+  "crit_chance": 0.2,
+  "speed_cost": 1.0,
+  "durability": 50,
+  "description": "A balanced one-handed sword, versatile and reliable."
+}

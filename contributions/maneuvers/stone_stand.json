@@ -1,0 +1,23 @@
+{
+  "maneuver_id": "stone_stand",
+  "name": "Stone Stand",
+  "tier": "Lower",
+  "description": "Become immovable for a short duration. Increased resistance to physical damage.",
+  "required_skills": {},
+  "required_level": 1,
+  "required_race": "sharah",
+  "attributes": [
+    "physical",
+    "spiritual"
+  ],
+  "cost": {
+    "stamina": 15
+  },
+  "cooldown": 3,
+  "effects": {
+    "success": "immovable_duration + damage_resistance",
+    "critical": "immovable_duration + heavy_damage_resistance",
+    "failure": "stamina_cost_only",
+    "critical_failure": "rooted_too_long"
+  }
+}

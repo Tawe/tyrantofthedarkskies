@@ -1,0 +1,8 @@
+{
+  "item_id": "oil_flask",
+  "name": "Oil Flask",
+  "description": "A flask of oil for lanterns and other uses.",
+  "item_type": "consumable",
+  "value": 8,
+  "stats": {}
+}

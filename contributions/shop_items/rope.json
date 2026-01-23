@@ -1,0 +1,8 @@
+{
+  "item_id": "rope",
+  "name": "Rope (20m)",
+  "description": "A sturdy rope, 20 meters long.",
+  "item_type": "item",
+  "value": 15,
+  "stats": {}
+}

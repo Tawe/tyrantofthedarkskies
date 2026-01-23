@@ -1,0 +1,15 @@
+{
+  "id": "axe",
+  "name": "Axe",
+  "category": "Melee",
+  "class": "Axe",
+  "hands": 1,
+  "range": 0,
+  "damage_min": 5,
+  "damage_max": 7,
+  "damage_type": "slashing",
+  "crit_chance": 0.18,
+  "speed_cost": 1.2,
+  "durability": 55,
+  "description": "A heavy one-handed axe that cleaves through enemies."
+}

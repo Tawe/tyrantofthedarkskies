@@ -1,0 +1,8 @@
+{
+  "item_id": "travel_rations",
+  "name": "Travel Rations (3 days)",
+  "description": "Basic rations to sustain you for three days of travel.",
+  "item_type": "consumable",
+  "value": 20,
+  "stats": {}
+}
