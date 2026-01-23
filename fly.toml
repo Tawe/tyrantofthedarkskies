@@ -1,0 +1,40 @@
+# fly.toml app configuration file generated for tyrant-of-dark-skies on 2026-01-23T15:21:32-04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'tyrant-of-dark-skies'
+primary_region = 'iad'
+
+[build]
+
+[env]
+  MUD_BIND_ADDRESS = '0.0.0.0'
+  MUD_WEBSOCKET_PORT = '5557'
+  PYTHONUNBUFFERED = '1'
+
+[http_service]
+  internal_port = 5557
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 5557
+  processes = ['app']
+
+  [[services.ports]]
+    port = 5557
+    handlers = ['tcp']
+
+  [services.concurrency]
+    type = 'connections'
+    hard_limit = 50
+    soft_limit = 25
+
+[[vm]]
+  memory = '1gb'
+  cpus = 1
+  memory_mb = 1024

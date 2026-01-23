@@ -29,19 +29,27 @@ class FirebaseAuth:
         # Get API key from service account (needed for REST API)
         try:
             import os
-            # Look for service account file in project root (one level up from firebase package)
-            project_root = os.path.dirname(os.path.dirname(__file__))
-            service_account_path = os.path.join(
-                project_root,
-                'firebase-service-account.json'
-            )
-            if os.path.exists(service_account_path):
-                with open(service_account_path, 'r') as f:
-                    service_account = json.load(f)
-                    # We'll need the project ID, not API key for Admin SDK
-                    # For REST API password verification, we need the Web API Key
-                    # This should be set as an environment variable or config
+            # Try environment variable first (for cloud deployments)
+            service_account_json = os.getenv('FIREBASE_SERVICE_ACCOUNT')
+            if service_account_json:
+                try:
+                    service_account = json.loads(service_account_json)
                     self.project_id = service_account.get('project_id')
+                except (json.JSONDecodeError, ValueError):
+                    self.project_id = None
+            else:
+                # Fallback to file (for local development)
+                project_root = os.path.dirname(os.path.dirname(__file__))
+                service_account_path = os.path.join(
+                    project_root,
+                    'firebase-service-account.json'
+                )
+                if os.path.exists(service_account_path):
+                    with open(service_account_path, 'r') as f:
+                        service_account = json.load(f)
+                        self.project_id = service_account.get('project_id')
+                else:
+                    self.project_id = None
         except Exception as e:
             print(f"Warning: Could not load Firebase config: {e}")
             self.project_id = None
