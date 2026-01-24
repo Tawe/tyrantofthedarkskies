@@ -25,7 +25,7 @@ class FirebaseDataLayer:
         """Load player data from Firestore by email."""
         # Query players collection for matching email
         players_ref = self.db.collection('players')
-        query = players_ref.where('email', '==', email).limit(1)
+        query = players_ref.where(filter=firestore.FieldFilter('email', '==', email)).limit(1)
         docs = query.stream()
         for doc in docs:
             return doc.to_dict()
@@ -35,7 +35,7 @@ class FirebaseDataLayer:
         """Load player data from Firestore by Firebase UID."""
         # Query players collection for matching firebase_uid
         players_ref = self.db.collection('players')
-        query = players_ref.where('firebase_uid', '==', uid).limit(1)
+        query = players_ref.where(filter=firestore.FieldFilter('firebase_uid', '==', uid)).limit(1)
         docs = query.stream()
         for doc in docs:
             return doc.to_dict()

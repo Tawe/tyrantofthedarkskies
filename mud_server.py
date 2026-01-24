@@ -3011,7 +3011,8 @@ that scales by tier, and offers attribute bonuses and starting skills.
         outlook = self.get_npc_outlook(merchant, player.name)
         price_mod = self.get_price_modifier(outlook)
         
-        output = f"\n{self.format_header(f'{merchant.name}\'s Goods')}\n"
+        header_text = f"{merchant.name}'s Goods"
+        output = f"\n{self.format_header(header_text)}\n"
         output += f"Outlook: {outlook} ({'Hostile' if outlook <= -50 else 'Unfriendly' if outlook <= -20 else 'Neutral' if outlook == 0 else 'Friendly' if outlook < 30 else 'Trusted'})\n\n"
         
         # Load shop items (from individual files or consolidated file)
@@ -3605,7 +3606,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 fated_mark_desc = fated_mark["description"]
         
         stats_text = f"""
-{self.format_header(f'{player.name}\'s Character Sheet')}
+{self.format_header(player.name + "'s Character Sheet")}
 Tier: {player.get_tier()} (Level {player.level})
 Experience: {player.experience}/{player.level * 100}
 Race: {race_name}
@@ -4130,7 +4131,8 @@ First, choose your race (affects attributes and starting skills):
             race_name = self.races[player.race].get('name', player.race.title())
         else:
             race_name = player.race.title() if player.race else "Unknown"
-        skills_text = f"\n{self.format_header(f'{player.name}\'s Skills')}\n"
+        header_text = f"{player.name}'s Skills"
+        skills_text = f"\n{self.format_header(header_text)}\n"
         skills_text += f"Race: {race_name} | Tier: {player.get_tier()} (Level {player.level})\n\n"
         
         # Group skills by category
@@ -4154,7 +4156,8 @@ First, choose your race (affects attributes and starting skills):
         
     def maneuvers_command(self, player, args):
         """Show player's known and active maneuvers"""
-        maneuvers_text = f"\n{self.format_header(f'{player.name}\'s Maneuvers')}\n"
+        header_text = f"{player.name}'s Maneuvers"
+        maneuvers_text = f"\n{self.format_header(header_text)}\n"
         maneuvers_text += f"Active: {len(player.active_maneuvers)}/{player.get_max_maneuvers()}\n\n"
         
         maneuvers_text += self.format_header("Known Maneuvers:") + "\n"
@@ -4707,146 +4710,151 @@ First, choose your race (affects attributes and starting skills):
         send_task = asyncio.create_task(send_messages())
         
         try:
-            # Firebase Auth - ask for email
-            welcome = "Welcome to Tyrant of the Dark Skies MUD!\n\nPlease enter your email address: "
-            await websocket.send(welcome)
-            
-            email_raw = await websocket.recv()
-            if not email_raw:
+            # Token-based authentication - expect JSON message with token
+            auth_message = await websocket.recv()
+            if not auth_message:
                 await websocket.close()
                 return
             
-            email = email_raw.strip().lower()
-            
-            # Validate email format
+            # Parse auth message (expect JSON with type and token)
             try:
-                is_valid = self.firebase_auth.validate_email(email)
-                if not is_valid:
-                    await websocket.send("Invalid email address format. Please use a valid email like: user@example.com\n")
+                auth_data = json.loads(auth_message)
+            except json.JSONDecodeError:
+                # Legacy: try plain text token (for backward compatibility during migration)
+                id_token = auth_message.strip()
+            else:
+                if auth_data.get('type') != 'auth':
+                    await websocket.send(json.dumps({
+                        'type': 'error',
+                        'message': 'Authentication required. Send {"type": "auth", "token": "your_token"}'
+                    }))
                     await websocket.close()
                     return
-            except Exception as e:
-                print(f"Error validating email '{email}': {e}")
-                await websocket.send("Error validating email. Please try again.\n")
+                id_token = auth_data.get('token')
+            
+            if not id_token:
+                await websocket.send(json.dumps({
+                    'type': 'auth_error',
+                    'error': 'No token provided'
+                }))
                 await websocket.close()
                 return
             
-            # Try to find player by email
+            # Verify ID token with Firebase Admin SDK
+            try:
+                decoded_token = self.firebase_auth.verify_id_token(id_token)
+                if not decoded_token:
+                    await websocket.send(json.dumps({
+                        'type': 'auth_error',
+                        'error': 'Invalid token'
+                    }))
+                    await websocket.close()
+                    return
+                
+                uid = decoded_token['uid']
+                email = decoded_token.get('email', '').lower()
+            except Exception as e:
+                print(f"Error verifying token: {e}")
+                await websocket.send(json.dumps({
+                    'type': 'auth_error',
+                    'error': 'Token verification failed'
+                }))
+                if self.logger:
+                    self.logger.log_login_attempt(email if 'email' in locals() else 'unknown', address, False)
+                await websocket.close()
+                with self.connection_lock:
+                    self.active_connections -= 1
+                return
+            
+            # Load player data by Firebase UID
             player_data = None
             if self.firebase:
-                player_data = self.firebase.load_player_by_email(email)
+                player_data = self.firebase.load_player_by_uid(uid)
             
-            # Check if Firebase user exists
-            firebase_user = self.firebase_auth.get_user_by_email(email)
+            # Create WebSocket wrapper for Player class
+            ws_connection = WebSocketConnection(websocket, address, send_queue)
             
-            if firebase_user:
-                # Firebase user exists - verify password
-                await websocket.send("Enter password: ")
-                password = await websocket.recv()
-                password = password.strip()
-                
-                # Verify password with Firebase
-                api_key = os.getenv('FIREBASE_WEB_API_KEY')
-                auth_result = self.firebase_auth.verify_password(email, password, api_key)
-                
-                if not auth_result:
-                    await websocket.send("Invalid email or password.\n")
-                    if self.logger:
-                        self.logger.log_login_attempt(email, address, False)
-                    await websocket.close()
-                    with self.connection_lock:
-                        self.active_connections -= 1
-                    return
-                
-                # Get player name from player data
-                if player_data:
-                    player_name = player_data.get('name')
-                else:
-                    # Need to get character name
-                    await websocket.send("Enter your character name: ")
-                    player_name_raw = await websocket.recv()
-                    try:
-                        player_name = self.sanitize_player_name(player_name_raw.strip()).lower()
-                    except ValueError:
-                        await websocket.send("Invalid character name.\n")
-                        await websocket.close()
-                        return
-                
-                # Load or create player
-                if not player_data:
-                    player_data = self.load_player_data(player_name)
-                
-                # Create WebSocket wrapper for Player class
-                ws_connection = WebSocketConnection(websocket, address, send_queue)
+            is_new_character = False
+            if player_data:
+                # Existing character - load data
+                player_name = player_data.get('name')
                 player = Player(player_name, ws_connection, address)
+                player.from_dict(player_data)
                 
-                is_new_character = False
-                if player_data:
-                    # Existing character - load data
-                    player.from_dict(player_data)
-                else:
-                    # New character
-                    is_new_character = True
-                    player.firebase_uid = firebase_user['uid']
-                    player.email = email
-                
-                # Update Firebase UID if not set (for existing characters)
+                # Update Firebase UID and email if not set (for migration)
                 if not hasattr(player, 'firebase_uid') or not player.firebase_uid:
-                    player.firebase_uid = firebase_user['uid']
+                    player.firebase_uid = uid
                     player.email = email
                     self.save_player_data(player)
-                
-                if self.logger:
-                    self.logger.log_login_attempt(email, address, True)
             else:
-                # New Firebase user - create account
-                await websocket.send("New account detected. Enter your character name: ")
-                player_name_raw = await websocket.recv()
+                # New user - need to create character
+                # Send message requesting character name
+                await websocket.send(json.dumps({
+                    'type': 'auth_success',
+                    'new_user': True,
+                    'message': 'Enter your character name:'
+                }))
+                
+                # Wait for character name
+                character_name_raw = await websocket.recv()
+                if not character_name_raw:
+                    await websocket.close()
+                    return
+                
+                # Parse if JSON, otherwise treat as plain text
                 try:
-                    player_name = self.sanitize_player_name(player_name_raw.strip()).lower()
-                except ValueError:
-                    await websocket.send("Invalid character name.\n")
+                    name_data = json.loads(character_name_raw)
+                    character_name_raw = name_data.get('name') or name_data.get('text') or character_name_raw
+                except json.JSONDecodeError:
+                    pass
+                
+                try:
+                    player_name = self.sanitize_player_name(character_name_raw.strip()).lower()
+                except ValueError as e:
+                    await websocket.send(json.dumps({
+                        'type': 'error',
+                        'message': f'Invalid character name: {str(e)}'
+                    }))
                     await websocket.close()
                     return
                 
                 # Check if character name already exists
                 existing_data = self.load_player_data(player_name)
                 if existing_data:
-                    await websocket.send("Character name already taken.\n")
+                    await websocket.send(json.dumps({
+                        'type': 'error',
+                        'message': 'Character name already taken.'
+                    }))
                     await websocket.close()
                     return
                 
-                await websocket.send("Enter password for your account: ")
-                password = await websocket.recv()
-                password = password.strip()
-                
-                # Validate password
-                is_valid, error_msg = self.firebase_auth.validate_password(password)
-                if not is_valid:
-                    await websocket.send(f"{error_msg}\n")
-                    await websocket.close()
-                    return
-                
-                # Create Firebase user
-                firebase_user = self.firebase_auth.create_user(email, password, player_name)
-                if not firebase_user:
-                    await websocket.send("Error creating account. Please try again.\n")
-                    await websocket.close()
-                    return
-                
-                # Create player
-                ws_connection = WebSocketConnection(websocket, address, send_queue)
+                # Create new player
                 player = Player(player_name, ws_connection, address)
-                player.firebase_uid = firebase_user['uid']
+                player.firebase_uid = uid
                 player.email = email
+                is_new_character = True
                 
                 if self.logger:
-                    self.logger.log_security_event("ACCOUNT_CREATED", email, f"Character: {player_name}")
+                    self.logger.log_security_event("CHARACTER_CREATED", email, f"Character: {player_name}")
+            
+            # Log successful authentication
+            if self.logger:
+                self.logger.log_login_attempt(email, address, True)
+            
+            # Send auth success message (only for existing users, new users already got it)
+            if not is_new_character:
+                await websocket.send(json.dumps({
+                    'type': 'auth_success',
+                    'new_user': False
+                }))
             
             # Check if already logged in
             with self.player_lock:
                 if player_name in self.players:
-                    await websocket.send("Character already logged in!\n")
+                    await websocket.send(json.dumps({
+                        'type': 'error',
+                        'message': 'Character already logged in!'
+                    }))
                     await websocket.close()
                     return
             
@@ -4924,11 +4932,28 @@ First, choose your race (affects attributes and starting skills):
                     print(f"Error handling WebSocket client from {ip_str}: {e}")
                     break
                     
+        except websockets.exceptions.ConnectionClosed as e:
+            # Normal client disconnection - don't log as error
+            ip_str = f"{address[0]}" if isinstance(address, tuple) else str(address)
+            # Only log if it's not a normal close (1000, 1001 are normal)
+            if e.code not in (1000, 1001, None):
+                if self.logger:
+                    self.logger.log_error("WEBSOCKET_ERROR", f"Unexpected close code {e.code}: {e.reason}", address)
+                print(f"WebSocket client from {ip_str} closed with code {e.code}: {e.reason}")
+        except websockets.exceptions.InvalidState:
+            # Connection already closed - normal, don't log
+            pass
         except Exception as e:
             ip_str = f"{address[0]}" if isinstance(address, tuple) else str(address)
-            if self.logger:
-                self.logger.log_error("WEBSOCKET_ERROR", str(e), address)
-            print(f"Error handling WebSocket client from {ip_str}: {e}")
+            # Check if it's a normal disconnection message
+            error_str = str(e)
+            if "1001" in error_str and "going away" in error_str.lower():
+                # Normal client disconnection - don't log as error
+                pass
+            else:
+                if self.logger:
+                    self.logger.log_error("WEBSOCKET_ERROR", str(e), address)
+                print(f"Error handling WebSocket client from {ip_str}: {e}")
         finally:
             send_task.cancel()
             if player_name is not None:
@@ -4942,6 +4967,12 @@ First, choose your race (affects attributes and starting skills):
             except (websockets.exceptions.ConnectionClosed, websockets.exceptions.InvalidState):
                 # Already closed, ignore
                 pass
+            except Exception as e:
+                # Suppress normal disconnection errors (1001 going away, etc.)
+                error_str = str(e)
+                if "1001" not in error_str or "going away" not in error_str.lower():
+                    # Only log if it's not a normal disconnection
+                    print(f"Error closing WebSocket: {e}")
     
     def start_websocket_server(self):
         """Start WebSocket server in a separate thread"""

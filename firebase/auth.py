@@ -56,7 +56,10 @@ class FirebaseAuth:
     
     def create_user(self, email: str, password: str, display_name: str) -> Optional[Dict]:
         """
-        Create a new Firebase user.
+        DEPRECATED: Create a new Firebase user.
+        This method is deprecated. User creation should be handled by the frontend
+        using Firebase Auth SDK (createUserWithEmailAndPassword).
+        
         Returns user data dict or None on error.
         """
         try:
@@ -77,7 +80,10 @@ class FirebaseAuth:
     
     def verify_password(self, email: str, password: str, api_key: Optional[str] = None) -> Optional[Dict]:
         """
-        Verify user credentials using Firebase REST API.
+        DEPRECATED: Verify user credentials using Firebase REST API.
+        This method is deprecated. Use token-based authentication instead.
+        Frontend should authenticate with Firebase Auth SDK and send ID tokens.
+        
         Requires Web API Key from Firebase Console.
         """
         if not api_key:

@@ -196,11 +196,29 @@
         const status = document.getElementById('status');
         const config = document.getElementById('config');
         
+        // Auto-detect WebSocket URL based on environment
+        function getDefaultWebSocketUrl() {
+            // Check if we're on localhost (development)
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return 'ws://localhost:5557';
+            }
+            // For production (Fly.io or other hosting), use secure WebSocket
+            // Update this to match your Fly.io app name
+            const flyAppName = 'tyrant-of-dark-skies'; // Change this to your Fly.io app name
+            return `wss://${flyAppName}.fly.dev:5557`;
+        }
+        
         // Show config on load
         window.addEventListener('load', () => {
             const savedUrl = localStorage.getItem('ws-url');
+            const defaultUrl = getDefaultWebSocketUrl();
+            const wsUrlInput = document.getElementById('ws-url');
+            
             if (savedUrl) {
-                document.getElementById('ws-url').value = savedUrl;
+                wsUrlInput.value = savedUrl;
+            } else {
+                wsUrlInput.value = defaultUrl;
+                wsUrlInput.placeholder = defaultUrl;
             }
             config.classList.add('visible');
         });
