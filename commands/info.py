@@ -145,8 +145,9 @@ def stats_command(game, player, args):
         if "description" in fated_mark:
             fated_mark_desc = fated_mark["description"]
     
+    header_text = f"{player.name}'s Character Sheet"
     stats_text = f"""
-{game.format_header(f'{player.name}\'s Character Sheet')}
+{game.format_header(header_text)}
 Tier: {player.get_tier()} (Level {player.level})
 Experience: {player.experience}/{player.level * 100}
 Race: {race_name}
@@ -187,7 +188,8 @@ def skills_command(game, player, args):
         race_name = game.races[player.race].get('name', player.race.title())
     else:
         race_name = player.race.title() if player.race else "Unknown"
-    skills_text = f"\n{game.format_header(f'{player.name}\'s Skills')}\n"
+    header_text = f"{player.name}'s Skills"
+    skills_text = f"\n{game.format_header(header_text)}\n"
     skills_text += f"Race: {race_name} | Tier: {player.get_tier()} (Level {player.level})\n\n"
     
     # Group skills by category
@@ -212,7 +214,8 @@ def skills_command(game, player, args):
 
 def maneuvers_command(game, player, args):
     """Show player's known and active maneuvers"""
-    maneuvers_text = f"\n{game.format_header(f'{player.name}\'s Maneuvers')}\n"
+    header_text = f"{player.name}'s Maneuvers"
+    maneuvers_text = f"\n{game.format_header(header_text)}\n"
     maneuvers_text += f"Active: {len(player.active_maneuvers)}/{player.get_max_maneuvers()}\n\n"
     
     maneuvers_text += game.format_header("Known Maneuvers:") + "\n"

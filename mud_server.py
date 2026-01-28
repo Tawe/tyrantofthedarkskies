@@ -4,6 +4,8 @@ import os
 import time
 import random
 import re
+import http
+import concurrent.futures
 from datetime import datetime
 from collections import defaultdict
 import logging
@@ -21,7 +23,8 @@ except ImportError:
 # WebSocket support
 try:
     import websockets
-    from websockets.server import WebSocketServerProtocol
+    # WebSocketServerProtocol is deprecated but may still be needed for type hints
+    # The actual websocket object from websockets.serve() works without explicit typing
     WEBSOCKET_AVAILABLE = True
 except ImportError:
     WEBSOCKET_AVAILABLE = False
@@ -66,10 +69,11 @@ except ImportError as e:
 
 class WebSocketConnection:
     """Wrapper to make WebSocket connections work like socket connections"""
-    def __init__(self, websocket, address, send_queue):
+    def __init__(self, websocket, address, send_queue, loop=None):
         self.websocket = websocket
         self.address = address
         self.send_queue = send_queue  # Queue for messages to send
+        self.loop = loop  # Event loop for thread-safe queueing
         self._closed = False
         self._timeout = None
     
@@ -79,7 +83,12 @@ class WebSocketConnection:
             data = data.decode('utf-8', errors='replace')
         if not self._closed and self.send_queue is not None:
             try:
-                self.send_queue.put_nowait(data)
+                # asyncio.Queue isn't thread-safe; commands may run in a worker thread.
+                # Use the loop to enqueue safely when available.
+                if self.loop is not None:
+                    self.loop.call_soon_threadsafe(self.send_queue.put_nowait, data)
+                else:
+                    self.send_queue.put_nowait(data)
             except Exception as e:
                 print(f"Error queuing WebSocket message: {e}")
                 self._closed = True
@@ -381,8 +390,17 @@ class MudGame:
         self.weapon_modifiers = {}  # Weapon modifiers
         self.player_lock = threading.Lock()
         self.world_lock = threading.Lock()
+        self.player_login_time = {}  # player_name -> time when added (to detect duplicate vs reconnect)
         self.websocket_port = int(os.getenv('MUD_WEBSOCKET_PORT', 5557))  # WebSocket port
-        self.bind_address = os.getenv('MUD_BIND_ADDRESS', 'localhost')  # '0.0.0.0' for public access
+        # Bind address for the WebSocket server.
+        # - On Fly: bind to 0.0.0.0 so the proxy can reach us.
+        # - Locally: bind to :: (IPv6 any) so both localhost/::1 and 127.0.0.1 work.
+        if os.getenv('MUD_BIND_ADDRESS'):
+            self.bind_address = os.getenv('MUD_BIND_ADDRESS')
+        elif os.getenv('FLY_APP_NAME'):
+            self.bind_address = '0.0.0.0'
+        else:
+            self.bind_address = '::'
         
         # Rate limiting
         self.rate_limiter = defaultdict(list)
@@ -392,6 +410,12 @@ class MudGame:
         self.max_connections = 50
         self.active_connections = 0
         self.connection_lock = threading.Lock()
+
+        # WebSocket command execution:
+        # Keep game logic off the asyncio event loop to avoid "works once then reload can't connect"
+        # symptoms caused by blocking synchronous work (Firebase, file IO, etc).
+        # Use a single worker to preserve ordering and reduce race conditions.
+        self.ws_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         
         # Logging (initialize before admin config to allow logging)
         try:
@@ -1569,13 +1593,21 @@ that scales by tier, and offers attribute bonuses and starting skills.
     def add_player(self, player):
         with self.player_lock:
             self.players[player.name] = player
-            
+            self.player_login_time[player.name] = time.time()
+
     def remove_player(self, player_name):
+        # Get player data while holding lock (quick operation)
+        player_to_save = None
         with self.player_lock:
             if player_name in self.players:
-                player = self.players[player_name]
-                self.save_player_data(player)
+                player_to_save = self.players[player_name]
                 del self.players[player_name]
+            if player_name in self.player_login_time:
+                del self.player_login_time[player_name]
+        
+        # Call Firebase OUTSIDE the lock (can block, but lock is released)
+        if player_to_save is not None:
+            self.save_player_data(player_to_save)
                 
     def get_room(self, room_id):
         return self.rooms.get(room_id)
@@ -2504,28 +2536,57 @@ that scales by tier, and offers attribute bonuses and starting skills.
     def use_maneuver_command(self, player, args):
         """Use a maneuver in combat or out of combat"""
         if not args:
-            self.send_to_player(player, "Use which maneuver?")
+            self.send_to_player(player, "Use which maneuver? Usage: use maneuver <name>")
             return
         
         maneuver_name = " ".join(args).lower()
         maneuver_id = None
+        matched_maneuver = None
         
-        # Find the maneuver
-        for mid, maneuver in self.maneuvers.items():
-            if maneuver_name in mid.lower() or maneuver_name in maneuver.get('name', '').lower():
-                maneuver_id = mid
-                break
+        # First, check if any of the player's known maneuvers match
+        for known_id in player.known_maneuvers:
+            if known_id in self.maneuvers:
+                maneuver = self.maneuvers[known_id]
+                maneuver_display_name = maneuver.get('name', '').lower()
+                # Check exact match on display name or ID
+                if (maneuver_name == maneuver_display_name or 
+                    maneuver_name == known_id.lower() or
+                    maneuver_name.replace(' ', '_') == known_id.lower()):
+                    maneuver_id = known_id
+                    matched_maneuver = maneuver
+                    break
+                # Check partial match
+                elif (maneuver_name in maneuver_display_name or 
+                      maneuver_name in known_id.lower()):
+                    if not maneuver_id:  # Store first partial match
+                        maneuver_id = known_id
+                        matched_maneuver = maneuver
+        
+        # If not found in known maneuvers, search all maneuvers (for better error message)
+        if not maneuver_id:
+            for mid, maneuver in self.maneuvers.items():
+                maneuver_display_name = maneuver.get('name', '').lower()
+                if (maneuver_name == maneuver_display_name or 
+                    maneuver_name == mid.lower() or
+                    maneuver_name.replace(' ', '_') == mid.lower() or
+                    maneuver_name in maneuver_display_name or 
+                    maneuver_name in mid.lower()):
+                    maneuver_id = mid
+                    matched_maneuver = maneuver
+                    break
         
         if not maneuver_id:
-            self.send_to_player(player, f"You don't know a maneuver called '{maneuver_name}'.")
+            self.send_to_player(player, f"You don't know a maneuver called '{' '.join(args)}'.")
+            self.send_to_player(player, f"Use {self.format_command('maneuvers')} to see your known maneuvers.")
             return
         
         if maneuver_id not in player.known_maneuvers:
-            self.send_to_player(player, f"You don't know the maneuver '{maneuver_name}'.")
+            self.send_to_player(player, f"You don't know the maneuver '{matched_maneuver.get('name', maneuver_id)}'.")
+            self.send_to_player(player, f"Use {self.format_command('maneuvers')} to see your known maneuvers.")
             return
         
         if maneuver_id not in player.active_maneuvers:
-            self.send_to_player(player, f"The maneuver '{maneuver_name}' is not currently active.")
+            self.send_to_player(player, f"The maneuver '{matched_maneuver.get('name', maneuver_id)}' is not currently active.")
             self.send_to_player(player, f"Use {self.format_command('maneuvers')} to activate it.")
             return
         
@@ -3644,8 +3705,21 @@ Maneuvers: {len(player.active_maneuvers)}/{player.get_max_maneuvers()} active"""
         if not args:
             self.send_to_player(player, "Use what?")
             return
+        
+        # If first arg is "maneuver", this shouldn't have been called - but handle it gracefully
+        if args and args[0].lower() == "maneuver":
+            self.use_maneuver_command(player, args[1:])
+            return
             
         item_name = " ".join(args).lower()
+        
+        # Check if it's a maneuver name first
+        for maneuver_id, maneuver in self.maneuvers.items():
+            if item_name in maneuver.get('name', '').lower() or item_name in maneuver_id.lower():
+                self.send_to_player(player, f"To use a maneuver, type: {self.format_command('use maneuver')} {maneuver['name']}")
+                if maneuver_id not in player.known_maneuvers:
+                    self.send_to_player(player, f"You don't know {maneuver['name']} yet. Maneuvers must be learned from masters throughout the world.")
+                return
         
         for item_id in player.inventory[:]:
             item = self.items.get(item_id)
@@ -4204,7 +4278,7 @@ First, choose your race (affects attributes and starting skills):
                 maneuvers_text += f"  {maneuver['name']} - {maneuver['description']}\n"
                 
         self.send_to_player(player, maneuvers_text.strip())
-                
+    
     def process_command(self, player, command):
         if not command.strip():
             return
@@ -4299,6 +4373,9 @@ First, choose your race (affects attributes and starting skills):
             elif cmd == "drop":
                 drop_command(self, player, args)
                 command_handled = True
+            elif cmd == "use" and args and len(args) > 0 and args[0].lower() == "maneuver":
+                use_maneuver_command(self, player, args[1:])
+                command_handled = True
             elif cmd == "use":
                 use_command(self, player, args)
                 command_handled = True
@@ -4325,9 +4402,6 @@ First, choose your race (affects attributes and starting skills):
                 command_handled = True
             elif cmd == "disengage":
                 disengage_command(self, player, args)
-                command_handled = True
-            elif cmd == "use" and args and len(args) > 1 and args[0] == "maneuver":
-                use_maneuver_command(self, player, args[1:])
                 command_handled = True
             elif cmd == "quests":
                 quests_command(self, player, args)
@@ -4399,7 +4473,11 @@ First, choose your race (affects attributes and starting skills):
                 self.drop_command(player, args)
                 command_handled = True
             elif cmd == "use":
-                self.use_command(player, args)
+                # Check if it's "use maneuver" first
+                if args and len(args) > 0 and args[0].lower() == "maneuver":
+                    self.use_maneuver_command(player, args[1:])
+                else:
+                    self.use_command(player, args)
                 command_handled = True
             elif cmd == "attack":
                 self.attack_command(player, args)
@@ -4424,9 +4502,6 @@ First, choose your race (affects attributes and starting skills):
                 command_handled = True
             elif cmd == "disengage":
                 self.disengage_command(player, args)
-                command_handled = True
-            elif cmd == "use" and args and len(args) > 1 and args[0] == "maneuver":
-                self.use_maneuver_command(player, args[1:])
                 command_handled = True
             elif cmd == "quests":
                 self.quests_command(player, args)
@@ -4676,61 +4751,90 @@ First, choose your race (affects attributes and starting skills):
         # Get remote address safely
         try:
             address = websocket.remote_address if hasattr(websocket, 'remote_address') else ('unknown', 0)
-        except:
+        except Exception:
             address = ('unknown', 0)
         
         # Check connection limit
-        with self.connection_lock:
-            if self.active_connections >= self.max_connections:
-                await websocket.send("Server is full. Please try again later.\n")
-                await websocket.close()
-                return
-            self.active_connections += 1
+        try:
+            with self.connection_lock:
+                if self.active_connections >= self.max_connections:
+                    await websocket.send("Server is full. Please try again later.\n")
+                    await websocket.close()
+                    return
+                self.active_connections += 1
+        except Exception as e:
+            print(f"Error checking connection limit: {e}")
+            import traceback
+            traceback.print_exc()
+            return
         
         # Create message queue for sending
         send_queue = asyncio.Queue()
+        ws_loop = asyncio.get_running_loop()
         
         # Task to send queued messages
         async def send_messages():
             while True:
                 try:
+                    if websocket.closed:
+                        break
                     message = await asyncio.wait_for(send_queue.get(), timeout=0.1)
                     await websocket.send(message)
                 except asyncio.TimeoutError:
                     continue
                 except (websockets.exceptions.ConnectionClosed, websockets.exceptions.InvalidState):
-                    # Connection closed, stop sending
                     break
                 except Exception as e:
                     print(f"Error sending WebSocket message: {e}")
-                    import traceback
-                    traceback.print_exc()
                     break
         
         send_task = asyncio.create_task(send_messages())
         
         try:
             # Token-based authentication - expect JSON message with token
-            auth_message = await websocket.recv()
+            try:
+                auth_message = await asyncio.wait_for(websocket.recv(), timeout=10.0)
+            except asyncio.TimeoutError:
+                await websocket.close(code=1008, reason="Auth timeout")
+                with self.connection_lock:
+                    self.active_connections = max(0, self.active_connections - 1)
+                return
+            except websockets.exceptions.ConnectionClosed:
+                with self.connection_lock:
+                    self.active_connections = max(0, self.active_connections - 1)
+                return
+            
             if not auth_message:
                 await websocket.close()
+                with self.connection_lock:
+                    self.active_connections = max(0, self.active_connections - 1)
                 return
             
             # Parse auth message (expect JSON with type and token)
+            id_token = None
             try:
                 auth_data = json.loads(auth_message)
-            except json.JSONDecodeError:
-                # Legacy: try plain text token (for backward compatibility during migration)
-                id_token = auth_message.strip()
-            else:
                 if auth_data.get('type') != 'auth':
                     await websocket.send(json.dumps({
                         'type': 'error',
                         'message': 'Authentication required. Send {"type": "auth", "token": "your_token"}'
                     }))
                     await websocket.close()
+                    with self.connection_lock:
+                        self.active_connections = max(0, self.active_connections - 1)
                     return
                 id_token = auth_data.get('token')
+            except json.JSONDecodeError:
+                # Not JSON - might be plain text command from vanilla client
+                # Send helpful error and close
+                await websocket.send(json.dumps({
+                    'type': 'error',
+                    'message': 'This server requires Firebase authentication. Send {"type": "auth", "token": "your_firebase_token"} as the first message.'
+                }))
+                await websocket.close()
+                with self.connection_lock:
+                    self.active_connections = max(0, self.active_connections - 1)
+                return
             
             if not id_token:
                 await websocket.send(json.dumps({
@@ -4738,11 +4842,18 @@ First, choose your race (affects attributes and starting skills):
                     'error': 'No token provided'
                 }))
                 await websocket.close()
+                with self.connection_lock:
+                    self.active_connections = max(0, self.active_connections - 1)
                 return
             
             # Verify ID token with Firebase Admin SDK
             try:
-                decoded_token = self.firebase_auth.verify_id_token(id_token)
+                # IMPORTANT: Firebase verification is synchronous and can block the event loop.
+                # Run it in a worker thread with a timeout.
+                decoded_token = await asyncio.wait_for(
+                    asyncio.to_thread(self.firebase_auth.verify_id_token, id_token),
+                    timeout=5.0,
+                )
                 if not decoded_token:
                     await websocket.send(json.dumps({
                         'type': 'auth_error',
@@ -4753,8 +4864,19 @@ First, choose your race (affects attributes and starting skills):
                 
                 uid = decoded_token['uid']
                 email = decoded_token.get('email', '').lower()
+            except asyncio.TimeoutError:
+                await websocket.send(json.dumps({
+                    'type': 'auth_error',
+                    'error': 'Token verification timed out'
+                }))
+                await websocket.close()
+                with self.connection_lock:
+                    self.active_connections = max(0, self.active_connections - 1)
+                return
             except Exception as e:
                 print(f"Error verifying token: {e}")
+                import traceback
+                traceback.print_exc()
                 await websocket.send(json.dumps({
                     'type': 'auth_error',
                     'error': 'Token verification failed'
@@ -4763,16 +4885,23 @@ First, choose your race (affects attributes and starting skills):
                     self.logger.log_login_attempt(email if 'email' in locals() else 'unknown', address, False)
                 await websocket.close()
                 with self.connection_lock:
-                    self.active_connections -= 1
+                    self.active_connections = max(0, self.active_connections - 1)
                 return
             
             # Load player data by Firebase UID
             player_data = None
             if self.firebase:
-                player_data = self.firebase.load_player_by_uid(uid)
+                # Firebase IO is synchronous; run it off the event loop with a timeout.
+                try:
+                    player_data = await asyncio.wait_for(
+                        asyncio.to_thread(self.firebase.load_player_by_uid, uid),
+                        timeout=5.0,
+                    )
+                except asyncio.TimeoutError:
+                    player_data = None
             
             # Create WebSocket wrapper for Player class
-            ws_connection = WebSocketConnection(websocket, address, send_queue)
+            ws_connection = WebSocketConnection(websocket, address, send_queue, loop=ws_loop)
             
             is_new_character = False
             if player_data:
@@ -4785,7 +4914,14 @@ First, choose your race (affects attributes and starting skills):
                 if not hasattr(player, 'firebase_uid') or not player.firebase_uid:
                     player.firebase_uid = uid
                     player.email = email
-                    self.save_player_data(player)
+                    # Saving may do synchronous IO; avoid blocking the event loop.
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.to_thread(self.save_player_data, player),
+                            timeout=5.0,
+                        )
+                    except asyncio.TimeoutError:
+                        pass  # Timeout saving player data
             else:
                 # New user - need to create character
                 # Send message requesting character name
@@ -4795,18 +4931,45 @@ First, choose your race (affects attributes and starting skills):
                     'message': 'Enter your character name:'
                 }))
                 
-                # Wait for character name
-                character_name_raw = await websocket.recv()
-                if not character_name_raw:
-                    await websocket.close()
-                    return
-                
-                # Parse if JSON, otherwise treat as plain text
-                try:
-                    name_data = json.loads(character_name_raw)
-                    character_name_raw = name_data.get('name') or name_data.get('text') or character_name_raw
-                except json.JSONDecodeError:
-                    pass
+                # Wait for character name - loop until we get a valid name (ignore duplicate auth messages)
+                character_name_raw = None
+                while True:
+                    try:
+                        message = await asyncio.wait_for(websocket.recv(), timeout=30.0)
+                    except asyncio.TimeoutError:
+                        await websocket.send(json.dumps({
+                            'type': 'error',
+                            'message': 'Timeout waiting for character name. Please reconnect and try again.'
+                        }))
+                        await websocket.close()
+                        return
+                    
+                    if not message:
+                        await websocket.close()
+                        return
+                    
+                    # Parse if JSON, otherwise treat as plain text
+                    try:
+                        name_data = json.loads(message)
+                        # Ignore duplicate auth messages (frontend may send them due to React Strict Mode)
+                        if name_data.get('type') == 'auth':
+                            # Just ignore it and continue waiting for character name
+                            continue
+                        character_name_raw = name_data.get('name') or name_data.get('text') or message
+                    except json.JSONDecodeError:
+                        character_name_raw = message
+                    
+                    # Reject if it looks like a JWT token (starts with "eyJ")
+                    if character_name_raw.strip().startswith('eyJ'):
+                        await websocket.send(json.dumps({
+                            'type': 'error',
+                            'message': 'Invalid character name. Please enter a proper character name, not a token.'
+                        }))
+                        # Continue waiting for a valid name instead of closing
+                        continue
+                    
+                    # We have a valid-looking name, break out of the loop
+                    break
                 
                 try:
                     player_name = self.sanitize_player_name(character_name_raw.strip()).lower()
@@ -4848,15 +5011,34 @@ First, choose your race (affects attributes and starting skills):
                     'new_user': False
                 }))
             
-            # Check if already logged in
-            with self.player_lock:
-                if player_name in self.players:
-                    await websocket.send(json.dumps({
-                        'type': 'error',
-                        'message': 'Character already logged in!'
-                    }))
-                    await websocket.close()
-                    return
+            # If this player name is already logged in, always kick the old
+            # connection and remove the old player entry before proceeding.
+            # This makes browser refresh / reconnects robust.
+            old_player = None
+            try:
+                with self.player_lock:
+                    old_player = self.players.get(player_name)
+            except Exception as e:
+                print(f"Error checking for old player: {e}")
+            
+            if old_player is not None:
+                old_ws = getattr(getattr(old_player, 'ws_connection', None), 'websocket', None)
+                if old_ws is not None:
+                    try:
+                        await old_ws.close()
+                    except Exception:
+                        pass
+                
+                # Ensure old player is fully removed before we continue.
+                # Run in executor to avoid blocking (remove_player calls Firebase synchronously)
+                try:
+                    loop = asyncio.get_running_loop()
+                    await asyncio.wait_for(
+                        loop.run_in_executor(self.ws_executor, self.remove_player, player_name),
+                        timeout=2.0
+                    )
+                except (asyncio.TimeoutError, Exception):
+                    pass  # Continue anyway
             
             # Set creation state
             # New characters (is_new_character=True) should have creation_state as None to trigger character creation
@@ -4873,73 +5055,104 @@ First, choose your race (affects attributes and starting skills):
                 if hasattr(player, 'firebase_uid') and player.firebase_uid:
                     admin_info = self.admin_config["admins"][player.name]
                     permissions = admin_info.get("permissions", ["all"])
-                    self.firebase_auth.set_admin_claim(player.firebase_uid, True, permissions)
+                    # Synchronous Firebase call; avoid blocking the event loop.
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.to_thread(self.firebase_auth.set_admin_claim, player.firebase_uid, True, permissions),
+                            timeout=5.0,
+                        )
+                    except asyncio.TimeoutError:
+                        pass  # Timeout setting admin claim
             
             # Load or create character
-            if player.creation_state == "complete":
-                welcome_back = f"Welcome back, {player_name}!\nType {self.format_command('help')} to see available commands.\n\n"
-                # Use send_to_player to strip ANSI codes for WebSocket
-                self.send_to_player(player, welcome_back.rstrip())
-                
-                player.max_maneuvers = player.get_max_maneuvers()
-                
-                room = self.get_room(player.room_id)
-                if room:
-                    room.players.add(player.name)
-                    self.explored_rooms[player.name].add(player.room_id)
-                
-                self.add_player(player)
-                if COMMANDS_AVAILABLE:
-                    look_command(self, player, [])
+            try:
+                if player.creation_state == "complete":
+                    welcome_back = f"Welcome back, {player_name}!\nType {self.format_command('help')} to see available commands.\n\n"
+                    # Use send_to_player to strip ANSI codes for WebSocket
+                    self.send_to_player(player, welcome_back.rstrip())
+                    
+                    player.max_maneuvers = player.get_max_maneuvers()
+                    
+                    room = self.get_room(player.room_id)
+                    if room:
+                        room.players.add(player.name)
+                        self.explored_rooms[player.name].add(player.room_id)
+                    else:
+                        print(f"Warning: Room {player.room_id} not found for {player_name}")
+                    
+                    self.add_player(player)
+                    # Run look command off the event loop (may involve heavy sync work).
+                    loop = asyncio.get_running_loop()
+                    if COMMANDS_AVAILABLE:
+                        await loop.run_in_executor(self.ws_executor, look_command, self, player, [])
+                    else:
+                        await loop.run_in_executor(self.ws_executor, self.look_command, player, [])
                 else:
-                    self.look_command(player, [])
-            else:
-                # New character - start creation
-                self.send_to_player(player, f"Welcome, {player_name}!\n\n")
+                    # New character - start creation
+                    self.send_to_player(player, f"Welcome, {player_name}!\n\n")
+                    self.add_player(player)
+                    self.character_creation_welcome(player)
+            except Exception as e:
+                print(f"Error loading/creating character {player_name}: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Ensure player is added and marked as logged in before starting game loop
+            if player_name not in self.players:
                 self.add_player(player)
-                self.character_creation_welcome(player)
+            
+            if not player.is_logged_in:
+                player.is_logged_in = True
             
             # Game loop
-            while player.is_logged_in:
-                try:
-                    # Wait for command from WebSocket
-                    command = await websocket.recv()
-                    if not command:
+            try:
+                while player.is_logged_in and not websocket.closed:
+                    try:
+                        message = await asyncio.wait_for(websocket.recv(), timeout=2.0)
+                        
+                        if not message:
+                            break
+                        
+                        command = message.strip()
+                        if command:
+                            try:
+                                loop = asyncio.get_running_loop()
+                                await loop.run_in_executor(self.ws_executor, self.process_command, player, command)
+                            except Exception as e:
+                                print(f"Error processing command '{command}': {e}")
+                                traceback.print_exc()
+                                self.send_to_player(player, f"Error processing command: {e}")
+                    except asyncio.TimeoutError:
+                        # Timeout is normal - check connection state and continue
+                        if websocket.closed or not player.is_logged_in:
+                            break
+                        continue
+                    except websockets.exceptions.ConnectionClosed:
                         break
-                    
-                    command = command.strip()
-                    if command:
-                        # Process command (this will use send_to_player which queues messages)
-                        # Run in executor to avoid blocking the event loop
-                        try:
-                            # process_command is synchronous, but should be fast
-                            # If it blocks, we might need to run it in an executor
-                            self.process_command(player, command)
-                        except Exception as e:
-                            print(f"Error processing command '{command}': {e}")
-                            traceback.print_exc()  # Full traceback for debugging
-                            self.send_to_player(player, f"Error processing command: {e}")
-                except websockets.exceptions.ConnectionClosed:
-                    # Client disconnected normally
-                    break
-                except websockets.exceptions.InvalidState:
-                    # Connection is in invalid state (closed)
-                    break
-                except Exception as e:
-                    ip_str = f"{address[0]}" if isinstance(address, tuple) else str(address)
-                    if self.logger:
-                        self.logger.log_error("WEBSOCKET_ERROR", str(e), address)
-                    print(f"Error handling WebSocket client from {ip_str}: {e}")
-                    break
+                    except websockets.exceptions.InvalidState:
+                        break
+            except websockets.exceptions.ConnectionClosed as e:
+                # 1000=normal close, 1001=going away (reload/tab close) — don't log
+                if e.code not in (1000, 1001, None) and self.logger:
+                    self.logger.log_error("WEBSOCKET_ERROR", f"Unexpected close code {e.code}: {e.reason}", address)
+            except Exception as e:
+                ip_str = f"{address[0]}" if isinstance(address, tuple) else str(address)
+                print(f"Exception in game loop for {player_name} from {ip_str}: {e}")
+                import traceback
+                traceback.print_exc()
+                if self.logger:
+                    self.logger.log_error("WEBSOCKET_ERROR", str(e), address)
+            finally:
+                # Ensure player is marked as logged out
+                player.is_logged_in = False
                     
         except websockets.exceptions.ConnectionClosed as e:
-            # Normal client disconnection - don't log as error
+            # 1000=normal close, 1001=going away (reload/tab close) — don't log
             ip_str = f"{address[0]}" if isinstance(address, tuple) else str(address)
-            # Only log if it's not a normal close (1000, 1001 are normal)
             if e.code not in (1000, 1001, None):
                 if self.logger:
                     self.logger.log_error("WEBSOCKET_ERROR", f"Unexpected close code {e.code}: {e.reason}", address)
-                print(f"WebSocket client from {ip_str} closed with code {e.code}: {e.reason}")
+                print(f"ConnectionClosed for {ip_str}: code={e.code}, reason={e.reason}")
         except websockets.exceptions.InvalidState:
             # Connection already closed - normal, don't log
             pass
@@ -4955,24 +5168,43 @@ First, choose your race (affects attributes and starting skills):
                     self.logger.log_error("WEBSOCKET_ERROR", str(e), address)
                 print(f"Error handling WebSocket client from {ip_str}: {e}")
         finally:
+            # Cancel send task
             send_task.cancel()
-            if player_name is not None:
-                self.remove_player(player_name)
-                if room is not None:
-                    room.players.discard(player_name)
-            with self.connection_lock:
-                self.active_connections = max(0, self.active_connections - 1)
             try:
-                await websocket.close()
-            except (websockets.exceptions.ConnectionClosed, websockets.exceptions.InvalidState):
-                # Already closed, ignore
+                await asyncio.wait_for(send_task, timeout=1.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
-            except Exception as e:
-                # Suppress normal disconnection errors (1001 going away, etc.)
-                error_str = str(e)
-                if "1001" not in error_str or "going away" not in error_str.lower():
-                    # Only log if it's not a normal disconnection
-                    print(f"Error closing WebSocket: {e}")
+            
+            # Clean up player state - run in executor to avoid blocking event loop
+            if player_name is not None:
+                try:
+                    loop = asyncio.get_running_loop()
+                    await asyncio.wait_for(
+                        loop.run_in_executor(self.ws_executor, self.remove_player, player_name),
+                        timeout=2.0
+                    )
+                    if room is not None:
+                        room.players.discard(player_name)
+                except (asyncio.TimeoutError, Exception):
+                    pass  # Continue cleanup even if removal fails
+            
+            # Decrement connection counter
+            try:
+                with self.connection_lock:
+                    self.active_connections = max(0, self.active_connections - 1)
+            except Exception:
+                # Force decrement even if lock fails
+                try:
+                    self.active_connections = max(0, self.active_connections - 1)
+                except:
+                    pass
+            
+            # Try to close websocket (but don't block if it's already closed)
+            try:
+                if not websocket.closed:
+                    await asyncio.wait_for(websocket.close(), timeout=0.5)
+            except (websockets.exceptions.ConnectionClosed, websockets.exceptions.InvalidState, asyncio.TimeoutError, Exception):
+                pass
     
     def start_websocket_server(self):
         """Start WebSocket server in a separate thread"""
@@ -4985,39 +5217,66 @@ First, choose your race (affects attributes and starting skills):
             import logging
             websockets_logger = logging.getLogger('websockets.server')
             websockets_logger.setLevel(logging.WARNING)  # Only show warnings and errors, not InvalidUpgrade
-            
-            async def handler(websocket, path=None):
-                """Wrapper handler for websockets.serve"""
-                try:
-                    await self.handle_websocket_client(websocket, path)
-                except websockets.exceptions.InvalidUpgrade:
-                    # Silently ignore invalid upgrade attempts (browsers hitting the port directly)
-                    pass
-                except websockets.exceptions.ConnectionClosed:
-                    # Client disconnected normally
-                    pass
-                except Exception as e:
-                    # Log other errors with full traceback for debugging
-                    import traceback
-                    print(f"WebSocket handler error: {e}")
-                    traceback.print_exc()
-            
-            async with websockets.serve(
+
+            # Use legacy server API for a reliable HTTP upgrade handshake.
+            # (We observed TCP accept works but websocket opening handshake times out even locally.)
+            from websockets.legacy.server import serve
+
+            async def handler(ws, path):
+                async def handle_connection():
+                    try:
+                        remote_addr = getattr(ws, "remote_address", "unknown")
+                    except Exception:
+                        remote_addr = "unknown"
+                    
+                    # Check connection limit
+                    try:
+                        with self.connection_lock:
+                            if self.active_connections >= self.max_connections:
+                                await ws.close(code=1008, reason="Server full")
+                                return
+                    except Exception as e:
+                        print(f"Error checking connection limit: {e}")
+                        return
+                    
+                    # Call the actual handler
+                    try:
+                        await self.handle_websocket_client(ws, path)
+                    except websockets.exceptions.ConnectionClosed:
+                        pass  # Normal connection closure
+                    except Exception as e:
+                        print(f"WebSocket handler error: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                await handle_connection()
+
+            print(f"Starting WebSocket server on {self.bind_address}:{self.websocket_port}...")
+            async with serve(
                 handler,
                 self.bind_address,
-                self.websocket_port
-            ):
-                print(f"WebSocket server started on {self.bind_address}:{self.websocket_port}")
-                if self.bind_address == '0.0.0.0':
-                    print(f"WebSocket server accessible from any IP on port {self.websocket_port}")
+                self.websocket_port,
+                ping_interval=20,
+                ping_timeout=20,
+                compression=None,
+                # Add connection timeout to prevent hanging connections
+                close_timeout=10,
+            ) as server:
+                print(f"WebSocket server started and listening on {self.bind_address}:{self.websocket_port}")
                 await asyncio.Future()  # Run forever
         
         # Run in new event loop in separate thread
+        server_ready = threading.Event()
+        server_started = threading.Event()
+        
         def run_in_thread():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(run_websocket_server())
+                task = loop.create_task(run_websocket_server())
+                server_ready.set()
+                loop.call_later(0.5, lambda: server_started.set())
+                loop.run_until_complete(task)
             except KeyboardInterrupt:
                 pass
             except Exception as e:
@@ -5029,6 +5288,13 @@ First, choose your race (affects attributes and starting skills):
         
         ws_thread = threading.Thread(target=run_in_thread, daemon=True)
         ws_thread.start()
+        
+        # Wait for server to be ready (with timeout)
+        if server_ready.wait(timeout=2.0):
+            if not server_started.wait(timeout=3.0):
+                print("Warning: WebSocket server thread started but may not be listening yet")
+        else:
+            print("ERROR: WebSocket server thread failed to start within timeout")
             
 
 if __name__ == "__main__":
@@ -5040,6 +5306,7 @@ if __name__ == "__main__":
         print("Initializing MUD server...")
         game = MudGame()
         print("MUD server initialized successfully.")
+        print(f"WebSocket will bind to: {game.bind_address}:{game.websocket_port}")
         
         # Start WebSocket server (web-only now)
         print("Starting web-based MUD server...")
@@ -5047,6 +5314,7 @@ if __name__ == "__main__":
         
         # Keep main thread alive
         print("Server is running. Press Ctrl+C to stop.")
+        print(f"WebSocket accepting connections on {game.bind_address}:{game.websocket_port}")
         try:
             while True:
                 time.sleep(1)

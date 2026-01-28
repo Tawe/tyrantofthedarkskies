@@ -49,7 +49,8 @@ def shop_list_command(game, player, args):
     outlook = game.get_npc_outlook(merchant, player.name)
     price_mod = game.get_price_modifier(outlook)
     
-    output = f"\n{game.format_header(f'{merchant.name}\'s Goods')}\n"
+    header_text = f"{merchant.name}'s Goods"
+    output = f"\n{game.format_header(header_text)}\n"
     output += f"Outlook: {outlook} ({'Hostile' if outlook <= -50 else 'Unfriendly' if outlook <= -20 else 'Neutral' if outlook == 0 else 'Friendly' if outlook < 30 else 'Trusted'})\n\n"
     
     # Load shop items (from individual files or consolidated file)

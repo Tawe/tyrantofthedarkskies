@@ -202,10 +202,15 @@
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 return 'ws://localhost:5557';
             }
-            // For production (Fly.io or other hosting), use secure WebSocket
-            // Update this to match your Fly.io app name
-            const flyAppName = 'tyrant-of-dark-skies'; // Change this to your Fly.io app name
-            return `wss://${flyAppName}.fly.dev:5557`;
+            // For production (Fly.io), use secure WebSocket on port 443 (default HTTPS)
+            // Fly.io's http_service proxies wss:// on 443 to internal_port 5557
+            if (window.location.hostname.includes('fly.dev')) {
+                // If already on fly.dev, use the same hostname
+                return `wss://${window.location.hostname}`;
+            }
+            // Otherwise, use the app name
+            const flyAppName = 'tyrant-of-dark-skies';
+            return `wss://${flyAppName}.fly.dev`;
         }
         
         // Show config on load

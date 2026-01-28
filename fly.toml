@@ -20,20 +20,6 @@ primary_region = 'iad'
   min_machines_running = 1
   processes = ['app']
 
-[[services]]
-  protocol = 'tcp'
-  internal_port = 5557
-  processes = ['app']
-
-  [[services.ports]]
-    port = 5557
-    handlers = ['tcp']
-
-  [services.concurrency]
-    type = 'connections'
-    hard_limit = 50
-    soft_limit = 25
-
 [[vm]]
   memory = '1gb'
   cpus = 1
