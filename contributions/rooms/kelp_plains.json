@@ -7,9 +7,9 @@
     "south": "buried_ruins"
   },
   "items": [],
-  "npcs": [],
+  "npcs": ["kelp_flea_1", "kelp_flea_2"],
   "flags": [
     "dangerous"
   ],
-  "combat_tags": []
+  "combat_tags": ["open", "obscured"]
 }
