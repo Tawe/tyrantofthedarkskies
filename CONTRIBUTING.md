@@ -23,6 +23,9 @@ The game uses a JSON-based contribution system. You can add:
 3. **Add your content** as JSON files in the appropriate `contributions/` folder
 4. **Test locally** to ensure it works
 5. **Submit a pull request** with a description of your additions
+6. **Automatic Sync**: Once merged, your contributions are automatically synced to Firebase! 🎉
+
+> **Note**: The repository includes a GitHub Actions workflow that automatically syncs contribution files to Firebase when they're added or modified. See [Contributions Sync Documentation](docs/contributions_sync.md) for details.
 
 ## 📁 File Organization
 

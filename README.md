@@ -168,6 +168,7 @@ We welcome contributions! The game uses a JSON-based contribution system:
 1. **Add Content**: Create JSON files in `contributions/` subdirectories
 2. **Follow Format**: See README.md files in each contribution folder
 3. **Submit PR**: Open a pull request with your additions
+4. **Auto-Sync**: Contributions are automatically synced to Firebase when merged! 🚀
 
 ### Contribution Areas
 
@@ -186,6 +187,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 - [Firebase Setup](FIREBASE_AUTH_SETUP.md) - Authentication setup
 - [Deployment Guide](DEPLOYMENT_GUIDE.md) - Deploy to production
 - [Free Deployment](FREE_DEPLOYMENT.md) - Zero-cost hosting options
+- [Contributions Sync](docs/contributions_sync.md) - Automatic Firebase sync setup
 - [Game Design Docs](docs/) - Core game mechanics and systems
 
 ## 🛠️ Development

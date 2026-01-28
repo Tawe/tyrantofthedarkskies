@@ -9,6 +9,8 @@ jobs:
   deploy:
     name: Deploy app
     runs-on: ubuntu-latest
+    # Skip if FLY_API_TOKEN is not set (won't fail the check)
+    if: ${{ secrets.FLY_API_TOKEN != '' }}
     concurrency: deploy-group    # optional: ensure only one action runs at a time
     steps:
       - uses: actions/checkout@v4
