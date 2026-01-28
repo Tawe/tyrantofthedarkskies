@@ -7,7 +7,7 @@ def attack_command(game, player, args):
     if not args:
         game.send_to_player(player, "Attack whom?")
         return
-        
+
     target_name = " ".join(args).lower()
     room = game.get_room(player.room_id)
     
@@ -44,17 +44,38 @@ def attack_command(game, player, args):
     if game.combat_manager and (target_npc or target_player):
         target = target_npc if target_npc else target_player
         target_display = target_npc.name if target_npc else target_player.name
-        
+
         # Start or join combat
         combat = game.combat_manager.get_combat_state(player.room_id)
         if not combat or not combat.is_active:
-            # Start new combat
+            # Start new combat (also sets initial target & engaged state)
             game.combat_manager.start_combat(player.room_id, player.name, player, target_display, target)
+            combat = game.combat_manager.get_combat_state(player.room_id)
         elif player.name not in combat.combatants:
             # Join existing combat
             game.combat_manager.join_combat(player.room_id, player.name, player, target_display)
-        
-        # Process attack through combat system
+
+        # At this point the player is a combatant; manage autoattack targeting.
+        combatant_info = combat.combatants.get(player.name)
+        if combatant_info:
+            current_target = combatant_info.get("target")
+            combatant_info["state"] = "Engaged"
+
+            # Already attacking this target → do not force another immediate attack.
+            if current_target and current_target.lower() == target_display.lower():
+                game.send_to_player(player, f"You are already attacking {target_display}.")
+                return
+
+            # Switching targets mid-combat.
+            if current_target and current_target.lower() != target_display.lower():
+                combatant_info["target"] = target_display
+                game.send_to_player(player, f"You turn your focus to {target_display}.")
+                return
+
+            # No existing target: set and perform an initial attack (also enables autoattack).
+            combatant_info["target"] = target_display
+
+        # Process initial attack through combat system
         result = game.combat_manager.process_turn(player.room_id, player.name, "attack", {"target": target_display})
         if result:
             if result.get("success"):

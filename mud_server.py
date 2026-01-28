@@ -5263,6 +5263,11 @@ First, choose your race (affects attributes and starting skills):
                 close_timeout=10,
             ) as server:
                 print(f"WebSocket server started and listening on {self.bind_address}:{self.websocket_port}")
+                
+                # Start combat tick task if combat manager is available
+                if self.combat_manager:
+                    self.combat_manager._ensure_combat_tick_task()
+                
                 await asyncio.Future()  # Run forever
         
         # Run in new event loop in separate thread
