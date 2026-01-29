@@ -171,16 +171,17 @@ class CombatManager:
         combat = self.get_combat_state(room_id)
         if entity_name not in combat.combatants:
             return False
-        
-        # Set to disengaging state
+
+        # Set to disengaging state on the tracked combatant
         combat.combatants[entity_name]["state"] = "Disengaging"
-        
-        # TODO: Check for opportunity attacks
-        
-        # Remove from combat
+
+        # TODO: Check for opportunity attacks before completing disengage
+
+        # Remove from combat tracking structures
         combat.remove_combatant(entity_name)
-        combat.combatants[entity_name]["state"] = "Observing"
-        
+        combat.turn_actions.pop(entity_name, None)
+        combat.turn_started_at.pop(entity_name, None)
+
         self.broadcast_func(room_id, f"{entity_name} disengages from combat.")
         
         # Check if combat should end

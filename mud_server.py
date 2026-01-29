@@ -4744,6 +4744,8 @@ First, choose your race (affects attributes and starting skills):
             
     async def handle_websocket_client(self, websocket, path):
         """Handle WebSocket client connections"""
+        import traceback
+
         player_name = None
         player = None
         room = None
@@ -4764,7 +4766,6 @@ First, choose your race (affects attributes and starting skills):
                 self.active_connections += 1
         except Exception as e:
             print(f"Error checking connection limit: {e}")
-            import traceback
             traceback.print_exc()
             return
         

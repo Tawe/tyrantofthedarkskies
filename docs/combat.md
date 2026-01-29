@@ -590,4 +590,4 @@ Enemies decide whether to switch targets using their AI template and threat rule
         
 - On pursuit:
     
-    - “A Kelp Flea skitters after you!”
+    - “A Kelp Flea skitters after you!
