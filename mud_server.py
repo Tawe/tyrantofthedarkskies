@@ -299,15 +299,58 @@ class Item:
         self.speed_cost = 1.0
         self.max_durability = 50
         
-        # Armor-specific properties
+        # Armor-specific properties (docs/armor_system.md)
         self.armor_type = None  # light, medium, heavy
-        self.damage_reduction = {}  # {damage_type: DR_amount} e.g., {"slashing": 2, "piercing": 1, "bludgeoning": 3}
-        self.armor_slots = []  # body, head, arms, legs, etc.
-        
+        self.slot = None  # single slot: head, chest, arms, legs, shield
+        self.damage_reduction = {}  # {damage_type: DR_amount}
+        self.armor_slots = []  # legacy: list of slots this can go in
+        self.primary_damage_type = None  # full DR for this type
+        self.damage_types = []  # all protected types (secondary = reduced DR)
+        self.weight = 0
+        self.armor_template_id = None
+        self.armor_modifier_id = None
+        # Armor uses same durability fields: current_durability, max_durability (armor HP)
+
     def is_armor(self):
         """Check if this item is armor"""
         return self.item_type == "armor" or self.armor_type is not None
-    
+
+    def get_armor_slot(self):
+        """Return the single slot this armor occupies (chest, head, arms, legs, shield)."""
+        if self.slot:
+            return self.slot
+        if self.armor_slots:
+            s = self.armor_slots[0].lower()
+            if s == "body":
+                return "chest"
+            if s == "offhand":
+                return "shield"
+            return s
+        return "chest"
+
+    def get_dr_for_damage_type(self, damage_type):
+        """Return DR applied for this damage type. Primary = full DR; secondary = 75%. Broken armor = 0 DR."""
+        if not self.damage_reduction:
+            return 0
+        cur = self.get_current_durability() if hasattr(self, 'get_current_durability') else getattr(self, 'current_durability', None)
+        if cur is not None and cur <= 0:
+            return 0
+        base_dr = self.damage_reduction.get(damage_type, 0)
+        if base_dr <= 0:
+            return 0
+        if self.primary_damage_type and damage_type == self.primary_damage_type:
+            return base_dr
+        if self.damage_types and damage_type in self.damage_types:
+            return max(0, int(base_dr * 0.75))  # secondary effectiveness
+        return base_dr  # no primary/secondary split: use as-is
+
+    def reduce_armor_hp(self, amount):
+        """Reduce armor durability by amount absorbed. Returns True if broken (0 HP)."""
+        if self.current_durability is None:
+            self.current_durability = self.max_durability if self.max_durability else 50
+        self.current_durability = max(0, self.current_durability - amount)
+        return self.current_durability <= 0
+
     def get_effective_damage(self):
         """Get effective damage range (min, max)"""
         return (self.damage_min, self.damage_max)
@@ -366,8 +409,16 @@ class Item:
         # Include armor properties if it's armor
         if self.is_armor():
             result["armor_type"] = self.armor_type
+            result["slot"] = self.slot
             result["damage_reduction"] = self.damage_reduction
             result["armor_slots"] = self.armor_slots
+            result["primary_damage_type"] = self.primary_damage_type
+            result["damage_types"] = getattr(self, "damage_types", []) or []
+            result["weight"] = getattr(self, "weight", 0)
+            result["armor_template_id"] = getattr(self, "armor_template_id", None)
+            result["armor_modifier_id"] = getattr(self, "armor_modifier_id", None)
+            result["current_durability"] = self.current_durability
+            result["max_durability"] = getattr(self, "max_durability", 50)
         
         return result
     
@@ -388,6 +439,8 @@ class MudGame:
         self.starsigns = {}
         self.weapons = {}  # Weapon templates
         self.weapon_modifiers = {}  # Weapon modifiers
+        self.armor_templates = {}  # Armor templates (docs/armor_system.md)
+        self.armor_modifiers = {}  # Armor material modifiers
         self.player_lock = threading.Lock()
         self.world_lock = threading.Lock()
         self.player_login_time = {}  # player_name -> time when added (to detect duplicate vs reconnect)
@@ -453,9 +506,10 @@ class MudGame:
         # Connection timeout (seconds)
         self.connection_timeout = 300  # 5 minutes
         
-        # Combat system
+        # Combat system (CombatManager + armor DR helper from docs/armor_system.md)
         try:
-            from systems.combat_system import CombatManager
+            from systems.combat_system import CombatManager, apply_armor_damage_reduction
+            self.apply_armor_damage_reduction = apply_armor_damage_reduction
             self.combat_manager = CombatManager(
                 self,
                 self.get_room,
@@ -465,7 +519,8 @@ class MudGame:
         except ImportError:
             # Fallback to root import for backward compatibility
             try:
-                from combat_system import CombatManager
+                from combat_system import CombatManager, apply_armor_damage_reduction
+                self.apply_armor_damage_reduction = apply_armor_damage_reduction
                 self.combat_manager = CombatManager(
                     self,
                     self.get_room,
@@ -474,10 +529,18 @@ class MudGame:
                 )
             except ImportError:
                 self.combat_manager = None
+                self.apply_armor_damage_reduction = None
                 print("Warning: CombatManager not available. Combat features disabled.")
         
         # Exploration tracking (for EXP rewards)
         self.explored_rooms = defaultdict(set)  # {player_name: set of room_ids}
+
+        # Runtime state (docs/runtime_state.md: room_state, entity instances, positions)
+        try:
+            from systems.runtime_state import RuntimeStateService
+            self.runtime_state = RuntimeStateService(self.firebase if self.use_firebase else None)
+        except ImportError:
+            self.runtime_state = None
         
         # Quest system
         try:
@@ -539,6 +602,8 @@ class MudGame:
         self.load_starsigns()
         self.load_weapons()
         self.load_weapon_modifiers()
+        self.load_armor_templates()
+        self.load_armor_modifiers()
         self.load_npc_schedules()
         self.load_store_hours()
         self.create_default_world()
@@ -1219,7 +1284,53 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 print(f"Loaded {len(self.weapon_modifiers)} weapon modifiers from weapon_modifiers.json")
         except Exception as e:
             print(f"Error loading weapon modifiers: {e}")
-    
+
+    def load_armor_templates(self):
+        """Load armor templates from contributions/armor_templates/ (docs/armor_system.md)."""
+        try:
+            contributions_dir = "contributions/armor_templates"
+            if os.path.exists(contributions_dir):
+                count = 0
+                for filename in os.listdir(contributions_dir):
+                    if filename.endswith('.json'):
+                        filepath = os.path.join(contributions_dir, filename)
+                        try:
+                            with open(filepath, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                tid = data.get('template_id') or data.get('id')
+                                if tid:
+                                    self.armor_templates[tid] = data
+                                    count += 1
+                        except Exception as e:
+                            print(f"Error loading armor template {filename}: {e}")
+                if count > 0:
+                    print(f"Loaded {count} armor templates from contributions/armor_templates/")
+        except Exception as e:
+            print(f"Error loading armor templates: {e}")
+
+    def load_armor_modifiers(self):
+        """Load armor material modifiers from contributions/armor_modifiers/ (docs/armor_system.md)."""
+        try:
+            contributions_dir = "contributions/armor_modifiers"
+            if os.path.exists(contributions_dir):
+                count = 0
+                for filename in os.listdir(contributions_dir):
+                    if filename.endswith('.json'):
+                        filepath = os.path.join(contributions_dir, filename)
+                        try:
+                            with open(filepath, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                mid = data.get('modifier_id') or data.get('id')
+                                if mid:
+                                    self.armor_modifiers[mid] = data
+                                    count += 1
+                        except Exception as e:
+                            print(f"Error loading armor modifier {filename}: {e}")
+                if count > 0:
+                    print(f"Loaded {count} armor modifiers from contributions/armor_modifiers/")
+        except Exception as e:
+            print(f"Error loading armor modifiers: {e}")
+
     def load_world_time(self):
         """Load saved world time from Firebase"""
         try:
@@ -1375,7 +1486,45 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 item.damage_type = modifier["damage_type_override"]
         
         return item
-            
+
+    def create_armor_item(self, armor_template_id, modifier_id=None, item_id=None):
+        """Create an armor Item from template + optional modifier (docs/armor_system.md)."""
+        if armor_template_id not in self.armor_templates:
+            return None
+        template = self.armor_templates[armor_template_id]
+        if item_id is None:
+            item_id = f"{modifier_id}_{armor_template_id}" if modifier_id else armor_template_id
+        item = Item(item_id, template.get("name", "Armor"), template.get("description", ""), "armor")
+        item.armor_template_id = armor_template_id
+        item.slot = template.get("slot", "chest")
+        item.armor_slots = [item.slot]
+        item.primary_damage_type = template.get("primary_damage_type")
+        item.damage_types = list(template.get("damage_types", []))
+        base_dr = template.get("base_dr", 0)
+        weight = template.get("weight", 0)
+        max_hp = template.get("max_hp", 40)
+        item.damage_reduction = {dt: base_dr for dt in item.damage_types}
+        if not item.damage_reduction and item.primary_damage_type:
+            item.damage_reduction = {item.primary_damage_type: base_dr}
+        item.max_durability = max_hp
+        item.current_durability = max_hp
+        item.armor_type = "light"
+        if modifier_id and modifier_id in self.armor_modifiers:
+            mod = self.armor_modifiers[modifier_id]
+            item.armor_modifier_id = modifier_id
+            item.name = f"{mod.get('name', '')} {template.get('name', 'Armor')}".strip()
+            dr_bonus = mod.get("dr_bonus", 0)
+            weight += mod.get("weight_modifier", 0)
+            max_hp = max(1, max_hp + mod.get("hp_bonus", 0))
+            item.weight = max(0, weight)
+            item.max_durability = max_hp
+            item.current_durability = max_hp
+            for dt in item.damage_reduction:
+                item.damage_reduction[dt] = max(0, item.damage_reduction[dt] + dr_bonus)
+        else:
+            item.weight = weight
+        return item
+
     def save_world_data(self):
         """Save world state including time"""
         self.save_world_time()
@@ -1611,7 +1760,14 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 
     def get_room(self, room_id):
         return self.rooms.get(room_id)
-        
+
+    def _room_blocks_pursuit(self, room_id: str) -> bool:
+        """P4 — Safe room rules: return True if room flags block pursuit (safe, no_pursuit)."""
+        room = self.get_room(room_id)
+        if not room or not getattr(room, "flags", None):
+            return False
+        return "safe" in room.flags or "no_pursuit" in room.flags
+
     def get_player(self, player_name):
         return self.players.get(player_name)
         
@@ -1669,7 +1825,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 scheduled_npcs = self.npc_scheduler.get_present_npcs(room.room_id)
                 present_npc_ids.update(scheduled_npcs)
             
-            # Try to find NPC
+            # Try to find template NPC
             npc = None
             for npc_id in present_npc_ids:
                 n = self.npcs.get(npc_id)
@@ -1680,6 +1836,18 @@ that scales by tier, and offers attribute bonuses and starting skills.
             if npc:
                 self.look_npc(player, npc)
                 return
+
+            # Try to find runtime entity instance (spawned creature) by name
+            if self.runtime_state:
+                for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                    if inst.get("entity_type") not in ("creature", "npc"):
+                        continue
+                    template_id = inst.get("template_id")
+                    template_npc = self.npcs.get(template_id) if template_id else None
+                    display_name = (template_npc.name if template_npc else template_id or "Unknown").lower()
+                    if npc_name in display_name:
+                        self._look_entity_instance(player, inst, template_npc)
+                        return
             
             # Handle "look <direction>" command
             direction = args[0].lower()
@@ -1719,21 +1887,37 @@ that scales by tier, and offers attribute bonuses and starting skills.
             scheduled_npcs = self.npc_scheduler.get_present_npcs(room.room_id, can_change_schedule)
             present_npc_ids.update(scheduled_npcs)
         
-        if present_npc_ids:
-            npcs_here = []
-            for npc_id in present_npc_ids:
-                npc = self.npcs.get(npc_id)
-                if npc:
-                    npcs_here.append(self.format_npc(npc.name))
-            if npcs_here:
-                output += f"\nNPCs here: {', '.join(npcs_here)}"
+        # NPCs here: template NPCs + runtime entity instances (spawned creatures)
+        npcs_here = []
+        for npc_id in present_npc_ids:
+            npc = self.npcs.get(npc_id)
+            if npc:
+                npcs_here.append(self.format_npc(npc.name))
+        if self.runtime_state:
+            for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                if inst.get("entity_type") not in ("creature", "npc"):
+                    continue
+                template_id = inst.get("template_id")
+                template_npc = self.npcs.get(template_id) if template_id else None
+                name = template_npc.name if template_npc else (template_id or "Unknown")
+                npcs_here.append(self.format_npc(name))
+        if npcs_here:
+            output += f"\nNPCs here: {', '.join(npcs_here)}"
             
-        if room.items:
-            items_here = []
-            for item_id in room.items:
-                item = self.items.get(item_id)
-                if item:
-                    items_here.append(self.format_item(item.name))
+        items_here = []
+        for item_id in room.items:
+            item = self.items.get(item_id)
+            if item:
+                items_here.append(self.format_item(item.name))
+        if self.runtime_state:
+            for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                if inst.get("entity_type") != "item":
+                    continue
+                template_id = inst.get("template_id")
+                item = self.items.get(template_id) if template_id else None
+                name = item.name if item else (template_id or "Unknown")
+                items_here.append(self.format_item(name))
+        if items_here:
             output += f"\nItems here: {', '.join(items_here)}"
             
         # Show room flags if present
@@ -1758,6 +1942,28 @@ that scales by tier, and offers attribute bonuses and starting skills.
             
         self.send_to_player(player, output)
     
+    def _look_entity_instance(self, player, inst, template_npc):
+        """Look at a runtime entity instance (spawned creature)."""
+        name = template_npc.name if template_npc else (inst.get("template_id") or "Unknown")
+        description = getattr(template_npc, "description", "") if template_npc else ""
+        output = f"\n{self.format_header(name)}\n"
+        output += f"{description}\n\n" if description else ""
+        hp_cur = inst.get("hp_current")
+        hp_max = inst.get("hp_max")
+        if hp_cur is not None and hp_max is not None and hp_max > 0:
+            pct = (hp_cur / hp_max) * 100
+            if pct < 25:
+                status = "critically wounded"
+            elif pct < 50:
+                status = "wounded"
+            elif pct < 75:
+                status = "injured"
+            else:
+                status = "healthy"
+            output += f"Status: {status} ({hp_cur}/{hp_max} health)\n"
+        output += self.format_brackets("Spawned creature", "gray") + "\n"
+        self.send_to_player(player, output.strip())
+
     def look_npc(self, player, npc):
         """Look at an NPC to see detailed information"""
         output = f"\n{self.format_header(npc.name)}\n"
@@ -1899,7 +2105,19 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if not room:
             self.send_to_player(player, self.format_error("You are in an unknown location."))
             return
-            
+
+        # P1 — Disengage gate: if engaged in combat, require disengage before moving
+        if self.combat_manager:
+            combat = self.combat_manager.get_combat_state(player.room_id)
+            if combat.is_active and player.name in combat.combatants:
+                self.send_to_player(
+                    player,
+                    self.format_error(
+                        "You are in combat. Use 'disengage' to break away before moving."
+                    ),
+                )
+                return
+
         if direction not in room.exits:
             available_exits = ", ".join([self.format_exit(d) for d in room.exits.keys()])
             self.send_to_player(player, self.format_error(f"You cannot go {self.format_brackets(direction)}. Available exits: {available_exits}"))
@@ -1925,6 +2143,11 @@ that scales by tier, and offers attribute bonuses and starting skills.
         room.players.discard(player.name)
         new_room.players.add(player.name)
         player.room_id = new_room_id
+
+        # Runtime state: load/create room_state and update last_active_at (R4, B1)
+        if self.runtime_state:
+            self.runtime_state.get_or_create_room_state(new_room_id)
+            self.runtime_state.update_room_last_active(new_room_id)
         
         # Exploration EXP reward (first time visiting a room)
         if new_room_id not in self.explored_rooms[player.name]:
@@ -1985,7 +2208,16 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 if item.is_weapon():
                     damage_min, damage_max = item.get_effective_damage()
                     output += f"\n  Damage: {damage_min}-{damage_max} ({item.damage_type}), Crit: {int(item.get_effective_crit_chance() * 100)}%, Durability: {item.get_current_durability()}/{item.max_durability}"
-                
+                # Show armor stats (docs/armor_system.md)
+                if item.is_armor():
+                    slot = item.get_armor_slot() if hasattr(item, 'get_armor_slot') else (item.slot or (item.armor_slots[0] if item.armor_slots else "?"))
+                    dr = getattr(item, 'damage_reduction', None) or {}
+                    dr_str = ", ".join(f"{k}:{v}" for k, v in dr.items()) if dr else "—"
+                    max_dur = getattr(item, 'max_durability', 50)
+                    cur_dur = item.get_current_durability() if hasattr(item, 'get_current_durability') else getattr(item, 'current_durability', max_dur)
+                    output += f"\n  Slot: {slot} | DR: {dr_str} | Durability: {cur_dur}/{max_dur}"
+                    if cur_dur <= 0:
+                        output += f" {self.format_brackets('BROKEN', 'red')}"
                 output += "\n"
                 
         self.send_to_player(player, output.strip())
@@ -2007,6 +2239,25 @@ that scales by tier, and offers attribute bonuses and starting skills.
             if item and item_name in item.name.lower():
                 room.items.remove(item_id)
                 player.inventory.append(item_id)
+                item_display = self.format_item(item.name)
+                self.send_to_player(player, self.format_success(f"You pick up {item_display}."))
+                self.broadcast_to_room(player.room_id, f"{player.name} picks up {item_display}.", player.name)
+                return
+
+        # B3: Try runtime item instances (dropped loot)
+        if self.runtime_state:
+            for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                if inst.get("entity_type") != "item":
+                    continue
+                template_id = inst.get("template_id")
+                item = self.items.get(template_id) if template_id else None
+                if not item or item_name not in item.name.lower():
+                    continue
+                instance_id = inst.get("instance_id")
+                if not instance_id:
+                    continue
+                player.inventory.append(template_id)
+                self.runtime_state.remove_entity_from_world(instance_id, delete_instance=True)
                 item_display = self.format_item(item.name)
                 self.send_to_player(player, self.format_success(f"You pick up {item_display}."))
                 self.broadcast_to_room(player.room_id, f"{player.name} picks up {item_display}.", player.name)
@@ -2137,6 +2388,54 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 self.send_to_player(player, f"Players online: {', '.join(online_players)}")
             else:
                 self.send_to_player(player, "No other players are online.")
+
+    def _on_combat_defeated(self, room_id, target_name, target_entity, attacker_name):
+        """B2: When a combatant is defeated, remove runtime instance and create loot if applicable."""
+        instance_id = getattr(target_entity, "instance_id", None)
+        if not instance_id or not self.runtime_state:
+            return
+        template_id = getattr(target_entity, "template_id", None)
+        template = self.npcs.get(template_id) if template_id else None
+        self.runtime_state.remove_entity_from_world(instance_id, delete_instance=True)
+        # B2: Update spawn group counters (decrement alive_count for this spawn_id)
+        spawn_group_id = getattr(target_entity, "spawn_group_id", None)
+        if spawn_group_id:
+            timer = self.runtime_state.get_spawn_timer(room_id, spawn_group_id)
+            alive = max(0, timer.get("alive_count", 1) - 1)
+            self.runtime_state.update_spawn_timer(room_id, spawn_group_id, alive_count=alive)
+        # Create loot as item instances and place in room
+        if template and getattr(template, "loot_table", None):
+            import time
+            now = time.time()
+            expires_at = now + (30 * 60)  # 30 minutes
+            for loot_entry in template.loot_table:
+                if isinstance(loot_entry, dict):
+                    chance = loot_entry.get("chance", 100)
+                    if random.randint(1, 100) <= chance:
+                        item_id = loot_entry.get("item")
+                        if item_id and self.items.get(item_id):
+                            item_inst_id = self.runtime_state.create_entity_instance(
+                                item_id, "item", quantity=1, expires_at=expires_at
+                            )
+                            if item_inst_id:
+                                self.runtime_state.place_entity(item_inst_id, room_id)
+                                item = self.items.get(item_id)
+                                self.broadcast_to_room(room_id, f"{item.name} drops from {target_name}!")
+                elif isinstance(loot_entry, str) and self.items.get(loot_entry):
+                    item_inst_id = self.runtime_state.create_entity_instance(
+                        loot_entry, "item", quantity=1, expires_at=expires_at
+                    )
+                    if item_inst_id:
+                        self.runtime_state.place_entity(item_inst_id, room_id)
+                        item = self.items.get(loot_entry)
+                        self.broadcast_to_room(room_id, f"{item.name} drops from {target_name}!")
+        # Award EXP to attacker if they are a player
+        attacker = self.get_player(attacker_name)
+        if attacker and template:
+            exp_gain = getattr(template, "exp_value", None) or (25 + (getattr(template, "max_health", 10) // 2) * {"Low": 1, "Mid": 2, "High": 3, "Epic": 5}.get(getattr(template, "tier", "Low"), 1))
+            attacker.experience += exp_gain
+            self.send_to_player(attacker, f"You gain {exp_gain} experience points!")
+            self.check_level_up(attacker)
                 
     def attack_command(self, player, args):
         if not args:
@@ -2321,18 +2620,12 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     damage = base_damage
                     self.send_to_player(player, f"You attack {target_npc.name} for {damage} damage with your {equipped_weapon.name}!")
                 
-                # ARMOR MITIGATION: Apply Damage Reduction by damage type
                 damage_type = equipped_weapon.damage_type
-                if hasattr(target_npc, 'equipped') and "armor" in target_npc.equipped:
-                    armor_id = target_npc.equipped.get("armor")
-                    armor_item = self.items.get(armor_id) if armor_id else None
-                    if armor_item and hasattr(armor_item, 'damage_reduction'):
-                        dr = armor_item.damage_reduction.get(damage_type, 0)
-                        if dr > 0:
-                            old_damage = damage
-                            damage = max(1, damage - dr)
-                            self.send_to_player(player, f"{target_npc.name}'s armor reduces the damage by {old_damage - damage}!")
-                
+                if getattr(self, 'apply_armor_damage_reduction', None):
+                    damage = self.apply_armor_damage_reduction(
+                        target_npc, damage, damage_type, self.items,
+                        self.broadcast_to_room, player.room_id
+                    )
                 # Reduce weapon durability
                 if equipped_weapon.reduce_durability(1):
                     self.send_to_player(player, f"Your {equipped_weapon.name} breaks!")
@@ -2355,17 +2648,12 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     damage = base_damage + random.randint(1, 3)
                     self.send_to_player(player, f"You attack {target_npc.name} for {damage} damage (unarmed)!")
                 
-                # ARMOR MITIGATION for unarmed
-                if hasattr(target_npc, 'equipped') and "armor" in target_npc.equipped:
-                    armor_id = target_npc.equipped.get("armor")
-                    armor_item = self.items.get(armor_id) if armor_id else None
-                    if armor_item and hasattr(armor_item, 'damage_reduction'):
-                        dr = armor_item.damage_reduction.get(damage_type, 0)
-                        if dr > 0:
-                            old_damage = damage
-                            damage = max(1, damage - dr)
-                            self.send_to_player(player, f"{target_npc.name}'s armor reduces the damage by {old_damage - damage}!")
-            
+                damage_type = "bludgeoning"
+                if getattr(self, 'apply_armor_damage_reduction', None):
+                    damage = self.apply_armor_damage_reduction(
+                        target_npc, damage, damage_type, self.items,
+                        self.broadcast_to_room, player.room_id
+                    )
             self.broadcast_to_room(player.room_id, 
                                   f"{player.name} attacks {target_npc.name}!", player.name)
             
@@ -2453,7 +2741,11 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     counter_damage = base_damage * 2
                 else:
                     counter_damage = base_damage + random.randint(1, 4)
-                
+                if getattr(self, 'apply_armor_damage_reduction', None):
+                    counter_damage = self.apply_armor_damage_reduction(
+                        player, counter_damage, "bludgeoning", self.items,
+                        self.broadcast_to_room, player.room_id
+                    )
                 player.health -= counter_damage
                 player.health = max(0, player.health)
                 self.send_to_player(player, f"{target_npc.name} hits you for {counter_damage} damage!")
@@ -2725,14 +3017,40 @@ that scales by tier, and offers attribute bonuses and starting skills.
             
             player.equipped["weapon"] = item_id
             self.send_to_player(player, f"You equip {item.name}.")
-            
-            # Show weapon stats
             damage_min, damage_max = item.get_effective_damage()
             self.send_to_player(player, f"  Damage: {damage_min}-{damage_max} ({item.damage_type})")
             self.send_to_player(player, f"  Critical: {int(item.get_effective_crit_chance() * 100)}%")
             self.send_to_player(player, f"  Durability: {item.get_current_durability()}/{item.max_durability}")
+        elif slot in ("head", "chest", "arms", "legs", "shield") or slot in ("armor", "offhand"):
+            if not item.is_armor():
+                self.send_to_player(player, f"{item.name} is not armor.")
+                return
+            armor_slot = item.get_armor_slot()
+            # Normalize: armor->chest, offhand->shield
+            req_slot = "chest" if slot == "armor" else ("shield" if slot == "offhand" else slot)
+            if armor_slot != req_slot:
+                self.send_to_player(player, f"{item.name} is worn on the {armor_slot}, not the {req_slot}. Try: equip {armor_slot} {item.name}")
+                return
+            if req_slot == "shield" and "weapon" in player.equipped:
+                wp = self.items.get(player.equipped["weapon"])
+                if wp and getattr(wp, "hands", 1) == 2:
+                    old_id = player.equipped["weapon"]
+                    old_w = self.items.get(old_id)
+                    if old_w:
+                        self.send_to_player(player, f"You unequip your {old_w.name} to use the shield.")
+                    del player.equipped["weapon"]
+            if req_slot in player.equipped:
+                old_id = player.equipped[req_slot]
+                old_armor = self.items.get(old_id)
+                if old_armor:
+                    self.send_to_player(player, f"You unequip your {old_armor.name}.")
+            player.equipped[req_slot] = item_id
+            self.send_to_player(player, f"You equip {item.name} on your {req_slot}.")
+            dur = item.get_current_durability() if hasattr(item, 'get_current_durability') else getattr(item, 'current_durability', 0)
+            max_dur = getattr(item, 'max_durability', 50)
+            self.send_to_player(player, f"  DR: {item.damage_reduction} | Durability: {dur}/{max_dur}")
         else:
-            self.send_to_player(player, f"Equipping to '{slot}' slot is not yet implemented.")
+            self.send_to_player(player, f"Unknown slot '{slot}'. Use: weapon, head, chest, arms, legs, shield.")
     
     def unequip_command(self, player, args):
         """Unequip a weapon or armor"""
@@ -4175,6 +4493,79 @@ First, choose your race (affects attributes and starting skills):
             
         self.send_to_player(player, room_list.strip())
         
+    def state_room_command(self, player, args):
+        """Debug: show runtime room_state for a room (O1)."""
+        if not args:
+            self.send_to_player(player, "Usage: state room <room_id>")
+            return
+        room_id = args[0].lower()
+        if not self.runtime_state:
+            self.send_to_player(player, "Runtime state not available.")
+            return
+        state = self.runtime_state.get_or_create_room_state(room_id)
+        if not state:
+            self.send_to_player(player, f"No room state for '{room_id}'.")
+            return
+        lines = [f"Room state: {room_id}", f"  seed: {state.get('seed')}", f"  created_at: {state.get('created_at')}", f"  last_active_at: {state.get('last_active_at')}", f"  last_reset_at: {state.get('last_reset_at')}", f"  next_reset_at: {state.get('next_reset_at')}", f"  state_version: {state.get('state_version')}"]
+        if state.get("spawn_state"):
+            lines.append(f"  spawn_state: {state['spawn_state']}")
+        if state.get("loot_state"):
+            lines.append(f"  loot_state: {state['loot_state']}")
+        self.send_to_player(player, "\n".join(lines))
+
+    def state_entity_command(self, player, args):
+        """Debug: show runtime entity instance and position (O1)."""
+        if not args:
+            self.send_to_player(player, "Usage: state entity <instance_id>")
+            return
+        instance_id = args[0]
+        if not self.runtime_state:
+            self.send_to_player(player, "Runtime state not available.")
+            return
+        inst = self.runtime_state.get_entity_instance(instance_id)
+        pos = self.runtime_state.get_entity_position(instance_id)
+        if not inst and not pos:
+            self.send_to_player(player, f"No entity or position for instance '{instance_id}'.")
+            return
+        lines = [f"Entity instance: {instance_id}"]
+        if inst:
+            for k, v in inst.items():
+                lines.append(f"  {k}: {v}")
+        if pos:
+            lines.append("Position:")
+            for k, v in pos.items():
+                if k != "instance_id":
+                    lines.append(f"  {k}: {v}")
+        self.send_to_player(player, "\n".join(lines))
+
+    def spawn_now_command(self, player, args):
+        """Debug: force spawn for a spawn_id in current room (O1). Creates one creature instance and places it."""
+        if not args:
+            self.send_to_player(player, "Usage: spawn now <spawn_id> (spawn_id = template NPC id, e.g. kelp_flea_1)")
+            return
+        spawn_id = args[0].lower()
+        if not self.runtime_state:
+            self.send_to_player(player, "Runtime state not available.")
+            return
+        template = self.npcs.get(spawn_id)
+        if not template:
+            self.send_to_player(player, f"Unknown NPC template '{spawn_id}'.")
+            return
+        room_id = player.room_id
+        hp_max = getattr(template, "max_health", getattr(template, "health", 10))
+        instance_id = self.runtime_state.create_entity_instance(
+            spawn_id,
+            "creature",
+            tier=getattr(template, "tier", "Low"),
+            role=getattr(template, "role", "minion"),
+            hp_current=hp_max,
+            hp_max=hp_max,
+            speed_cost=getattr(template, "speed_cost", 1.0),
+            spawn_group_id=spawn_id,
+        )
+        self.runtime_state.place_entity(instance_id, room_id)
+        self.send_to_player(player, f"Spawned instance {instance_id} (template {spawn_id}) in {room_id}. Note: in-room NPC list still uses templates; instance is in runtime DB.")
+
     def goto_command(self, player, args):
         # Admin check is now done in process_command with logging
             
@@ -4434,6 +4825,17 @@ First, choose your race (affects attributes and starting skills):
             elif cmd == "set_time" and args and self.is_admin(player):
                 set_time_command(self, player, args)
                 command_handled = True
+            elif cmd == "state" and args and self.is_admin(player):
+                if args[0].lower() == "room":
+                    self.state_room_command(player, args[1:])
+                elif args[0].lower() == "entity":
+                    self.state_entity_command(player, args[1:])
+                else:
+                    self.send_to_player(player, "Usage: state room <room_id> | state entity <instance_id>")
+                command_handled = True
+            elif cmd == "spawn" and args and args[0].lower() == "now" and self.is_admin(player):
+                self.spawn_now_command(player, args[1:])
+                command_handled = True
             elif cmd == "talk" and args:
                 talk_command(self, player, args)
                 command_handled = True
@@ -4533,6 +4935,17 @@ First, choose your race (affects attributes and starting skills):
                 command_handled = True
             elif cmd == "set_time" and args and self.is_admin(player):
                 self.set_time_command(player, args)
+                command_handled = True
+            elif cmd == "state" and args and self.is_admin(player):
+                if args[0].lower() == "room":
+                    self.state_room_command(player, args[1:])
+                elif args[0].lower() == "entity":
+                    self.state_entity_command(player, args[1:])
+                else:
+                    self.send_to_player(player, "Usage: state room <room_id> | state entity <instance_id>")
+                command_handled = True
+            elif cmd == "spawn" and args and args[0].lower() == "now" and self.is_admin(player):
+                self.spawn_now_command(player, args[1:])
                 command_handled = True
             elif cmd == "talk" and args:
                 self.talk_command(player, args)

@@ -1,0 +1,11 @@
+{
+  "template_id": "wooden_shield",
+  "name": "Wooden Shield",
+  "description": "A simple wooden shield for basic defense.",
+  "slot": "shield",
+  "weight": 4,
+  "base_dr": 1,
+  "primary_damage_type": "bludgeoning",
+  "damage_types": ["slashing", "piercing", "bludgeoning"],
+  "max_hp": 25
+}

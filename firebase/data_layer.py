@@ -214,6 +214,8 @@ class FirebaseDataLayer:
             # Handle basic types
             elif isinstance(value, (str, int, float, bool)):
                 clean[key] = value
+            elif value is firestore.SERVER_TIMESTAMP:
+                clean[key] = value
             # Skip other types that aren't serializable
             else:
                 clean[key] = str(value)
@@ -303,3 +305,87 @@ class FirebaseDataLayer:
         # Commit remaining operations
         if count > 0 and count % 500 != 0:
             batch.commit()
+
+    # --- Runtime state (R2, R3, R4 from runtime_state.md) ---
+
+    def load_room_state(self, room_id: str) -> Optional[Dict]:
+        """Load room_state for a room. Returns None if not present."""
+        doc_ref = self.db.collection('runtime').document('room_state').collection('data').document(room_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return None
+
+    def save_room_state(self, room_id: str, state: Dict):
+        """Save room_state. Ensures runtime/room_state parent exists."""
+        self.db.collection('runtime').document('room_state').set({'type': 'room_state'}, merge=True)
+        clean = self._clean_data(state)
+        clean['last_updated'] = firestore.SERVER_TIMESTAMP
+        self.db.collection('runtime').document('room_state').collection('data').document(room_id).set(clean, merge=True)
+
+    def run_room_state_transaction(self, room_id: str, callback):
+        """
+        C1/C3: Run a transaction that reads and optionally writes room_state.
+        callback(transaction, room_ref) receives Firestore transaction and room_state doc ref.
+        Call room_ref.get(transaction=transaction) to read. Return (result, state_dict) to write
+        and return result; state_dict will be cleaned and set. Return (result,) or result for no write.
+        """
+        room_ref = self.db.collection('runtime').document('room_state').collection('data').document(room_id)
+        self.db.collection('runtime').document('room_state').set({'type': 'room_state'}, merge=True)
+
+        @firestore.transactional
+        def _run(transaction):
+            out = callback(transaction, room_ref)
+            if isinstance(out, tuple) and len(out) == 2 and out[1] is not None:
+                state = out[1]
+                state['last_updated'] = firestore.SERVER_TIMESTAMP
+                transaction.set(room_ref, self._clean_data(state), merge=True)
+                return out[0]
+            return out[0] if isinstance(out, tuple) else out
+
+        transaction = self.db.transaction()
+        return _run(transaction)
+
+    def load_entity_instance(self, instance_id: str) -> Optional[Dict]:
+        """Load a single entity instance by instance_id."""
+        doc_ref = self.db.collection('runtime').document('entity_instances').collection('data').document(instance_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return None
+
+    def save_entity_instance(self, instance_id: str, data: Dict):
+        """Save an entity instance."""
+        self.db.collection('runtime').document('entity_instances').set({'type': 'entity_instances'}, merge=True)
+        clean = self._clean_data(data)
+        clean['last_updated'] = firestore.SERVER_TIMESTAMP
+        self.db.collection('runtime').document('entity_instances').collection('data').document(instance_id).set(clean, merge=True)
+
+    def delete_entity_instance(self, instance_id: str):
+        """Delete an entity instance."""
+        self.db.collection('runtime').document('entity_instances').collection('data').document(instance_id).delete()
+
+    def load_entity_positions_for_room(self, room_id: str) -> List[Dict]:
+        """Load all entity positions in a room. Returns list of {instance_id, room_id, updated_at, ...}."""
+        ref = self.db.collection('runtime').document('entity_positions').collection('data')
+        query = ref.where(filter=firestore.FieldFilter('room_id', '==', room_id))
+        return [{"instance_id": doc.id, **doc.to_dict()} for doc in query.stream()]
+
+    def load_entity_position(self, instance_id: str) -> Optional[Dict]:
+        """Load position for one instance."""
+        doc_ref = self.db.collection('runtime').document('entity_positions').collection('data').document(instance_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            return {"instance_id": instance_id, **doc.to_dict()}
+        return None
+
+    def save_entity_position(self, instance_id: str, room_id: str, **kwargs):
+        """Set entity position (and optional range_band, engaged_target_id, leash_room_id)."""
+        self.db.collection('runtime').document('entity_positions').set({'type': 'entity_positions'}, merge=True)
+        data = {"room_id": room_id, "updated_at": firestore.SERVER_TIMESTAMP, **kwargs}
+        clean = self._clean_data(data)
+        self.db.collection('runtime').document('entity_positions').collection('data').document(instance_id).set(clean, merge=True)
+
+    def delete_entity_position(self, instance_id: str):
+        """Remove entity from world (e.g. on death)."""
+        self.db.collection('runtime').document('entity_positions').collection('data').document(instance_id).delete()

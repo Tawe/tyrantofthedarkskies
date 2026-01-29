@@ -1,0 +1,9 @@
+{
+  "modifier_id": "bone",
+  "id": "bone",
+  "name": "Bone",
+  "dr_bonus": 0,
+  "weight_modifier": -1,
+  "hp_bonus": -15,
+  "notes": "Lightweight but brittle"
+}

@@ -6,12 +6,15 @@
   "value": 60,
   "stats": {},
   "armor_type": "light",
+  "slot": "shield",
+  "primary_damage_type": "bludgeoning",
+  "damage_types": ["slashing", "piercing", "bludgeoning"],
   "damage_reduction": {
     "slashing": 1,
     "piercing": 1,
     "bludgeoning": 1
   },
-  "armor_slots": [
-    "offhand"
-  ]
+  "armor_slots": ["shield"],
+  "max_durability": 25,
+  "current_durability": 25
 }

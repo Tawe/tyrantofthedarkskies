@@ -6,12 +6,15 @@
   "value": 120,
   "stats": {},
   "armor_type": "light",
+  "slot": "chest",
+  "primary_damage_type": "slashing",
+  "damage_types": ["slashing", "piercing"],
   "damage_reduction": {
     "slashing": 2,
     "piercing": 2,
     "bludgeoning": 1
   },
-  "armor_slots": [
-    "body"
-  ]
+  "armor_slots": ["chest"],
+  "max_durability": 40,
+  "current_durability": 40
 }

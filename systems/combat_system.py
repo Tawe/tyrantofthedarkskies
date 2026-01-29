@@ -5,6 +5,44 @@ import time
 import asyncio
 from collections import defaultdict
 
+# Armor slots per docs/armor_system.md (also support legacy "armor"=chest, "offhand"=shield)
+ARMOR_SLOTS = ("head", "chest", "arms", "legs", "shield", "armor", "offhand")
+
+
+def apply_armor_damage_reduction(target, damage, damage_type, items_dict, broadcast_func=None, room_id=None):
+    """
+    Apply DR from all equipped armor and degrade each piece by amount absorbed (docs/armor_system.md).
+    Returns final damage to apply to target HP. Call after hit is confirmed.
+    """
+    if not items_dict or not hasattr(target, 'equipped'):
+        return damage
+    armor_pieces = []
+    for slot in ARMOR_SLOTS:
+        item_id = target.equipped.get(slot)
+        if not item_id:
+            continue
+        piece = items_dict.get(item_id)
+        if not piece or not getattr(piece, 'is_armor', lambda: False)():
+            continue
+        dr = piece.get_dr_for_damage_type(damage_type) if hasattr(piece, 'get_dr_for_damage_type') else piece.damage_reduction.get(damage_type, 0)
+        if dr > 0:
+            armor_pieces.append((slot, item_id, piece, dr))
+    if not armor_pieces:
+        return damage
+    total_dr = sum(p[3] for p in armor_pieces)
+    damage_after = max(1, damage - total_dr)
+    absorbed = damage - damage_after
+    for slot, item_id, piece, piece_dr in armor_pieces:
+        if total_dr <= 0:
+            break
+        absorbed_by_piece = max(0, int(round(absorbed * piece_dr / total_dr)))
+        if absorbed_by_piece > 0 and hasattr(piece, 'reduce_armor_hp'):
+            broken = piece.reduce_armor_hp(absorbed_by_piece)
+            if broken and broadcast_func and room_id:
+                target_name_display = getattr(target, 'name', str(target))
+                broadcast_func(room_id, f"{target_name_display}'s {piece.name} is broken!")
+    return damage_after
+
 class CombatState:
     """Represents the state of combat in a room"""
     
@@ -435,6 +473,9 @@ class CombatManager:
                 target_entity = combat.combatants[target_name]["entity"]
                 if hasattr(target_entity, 'health') and target_entity.health <= 0:
                     self.broadcast_func(room_id, f"{target_name} has been defeated!")
+                    # Notify game for runtime B2 (remove instance, create loot)
+                    if hasattr(self.formatter, '_on_combat_defeated'):
+                        self.formatter._on_combat_defeated(room_id, target_name, target_entity, entity_name)
                     combat.remove_combatant(target_name)
                     
                     # Check if combat should end
@@ -590,15 +631,13 @@ class CombatManager:
             else:
                 damage = base_damage + random.randint(1, 3)
         
-        # ARMOR MITIGATION: Apply Damage Reduction by damage type
-        # Only applied after hit is confirmed
-        if hasattr(target, 'equipped') and "armor" in target.equipped and items_dict:
-            armor_id = target.equipped.get("armor")
-            armor_item = items_dict.get(armor_id) if armor_id else None
-            if armor_item and hasattr(armor_item, 'damage_reduction'):
-                dr = armor_item.damage_reduction.get(damage_type, 0)
-                damage = max(1, damage - dr)  # Minimum 1 damage
-        
+        # ARMOR MITIGATION (docs/armor_system.md): DR stacks; each piece degrades by amount absorbed
+        if items_dict:
+            damage = apply_armor_damage_reduction(
+                target, damage, damage_type, items_dict,
+                broadcast_func=self.broadcast_func, room_id=combat.room_id
+            )
+
         # Apply damage
         target.health -= damage
         target.health = max(0, target.health)

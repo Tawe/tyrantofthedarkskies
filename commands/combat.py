@@ -2,6 +2,31 @@
 
 import random
 
+
+class _InstanceCombatTarget:
+    """Wrapper so runtime entity instances can be used as combat targets (same interface as NPC)."""
+    def __init__(self, inst, template_npc):
+        self._template = template_npc
+        self._inst = inst
+        self.name = template_npc.name if template_npc else inst.get("template_id", "Unknown")
+        self.health = inst.get("hp_current", 0)
+        self.max_health = inst.get("hp_max", 10)
+        self.instance_id = inst.get("instance_id")
+        self.template_id = inst.get("template_id")
+        self.loot_table = getattr(template_npc, "loot_table", []) if template_npc else []
+        self.npc_id = self.instance_id
+        self.equipped = getattr(template_npc, "equipped", {}) if template_npc else {}
+    def get_tier(self):
+        return getattr(self._template, "get_tier", lambda: "Low")() if self._template else "Low"
+    def get_attribute_bonus(self, attribute):
+        return getattr(self._template, "get_attribute_bonus", lambda _: 0)(attribute) if self._template else 0
+    def roll_skill_check(self, skill_name, difficulty_mod=0):
+        return getattr(self._template, "roll_skill_check", lambda _s, _m=0: {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50})(skill_name, difficulty_mod) if self._template else {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50}
+    @property
+    def exp_value(self):
+        return getattr(self._template, "exp_value", 0) if self._template else 0
+
+
 def attack_command(game, player, args):
     """Attack a target (NPC or player)."""
     if not args:
@@ -36,10 +61,21 @@ def attack_command(game, player, args):
                 target_npc = npc
                 break
             
+    # Resolve runtime entity instance (spawned creature) if no template NPC matched
+    if not target_npc and not target_player and game.runtime_state:
+        for inst in game.runtime_state.get_entities_in_room(room.room_id):
+            if inst.get("entity_type") not in ("creature", "npc"):
+                continue
+            template_id = inst.get("template_id")
+            template_npc = game.npcs.get(template_id) if template_id else None
+            display_name = (template_npc.name if template_npc else template_id or "").lower()
+            if target_name in display_name:
+                target_npc = _InstanceCombatTarget(inst, template_npc)
+                break
     if not target_npc and not target_player:
         game.send_to_player(player, "You don't see that target here or it's not hostile.")
         return
-    
+
     # Use combat system if available, otherwise use simple combat
     if game.combat_manager and (target_npc or target_player):
         target = target_npc if target_npc else target_player
@@ -88,8 +124,8 @@ def attack_command(game, player, args):
                 else:
                     game.send_to_player(player, f"You attack {target_display} but miss!")
                 
-                # Handle defeat and EXP
-                if target_npc and hasattr(target_npc, 'health') and target_npc.health <= 0:
+                # Handle defeat and EXP (template NPCs only; runtime instances handled by _on_combat_defeated)
+                if target_npc and hasattr(target_npc, 'health') and target_npc.health <= 0 and not getattr(target_npc, 'instance_id', None):
                     # Award EXP
                     if hasattr(target_npc, 'exp_value') and target_npc.exp_value > 0:
                         exp_gain = target_npc.exp_value
@@ -118,8 +154,9 @@ def attack_command(game, player, args):
                                 if item:
                                     game.broadcast_to_room(player.room_id, f"{item.name} drops from {target_npc.name}!")
                     
-                    # Remove NPC
-                    room.npcs.remove(target_npc.npc_id)
+                    # Remove NPC from room (template only)
+                    if target_npc.npc_id in room.npcs:
+                        room.npcs.remove(target_npc.npc_id)
                     game.check_level_up(player)
             else:
                 game.send_to_player(player, result.get("message", "Attack failed"))
@@ -207,18 +244,12 @@ def attack_command(game, player, args):
                 damage = base_damage
                 game.send_to_player(player, f"You attack {target_npc.name} for {damage} damage with your {equipped_weapon.name}!")
             
-            # ARMOR MITIGATION: Apply Damage Reduction by damage type
             damage_type = equipped_weapon.damage_type
-            if hasattr(target_npc, 'equipped') and "armor" in target_npc.equipped:
-                armor_id = target_npc.equipped.get("armor")
-                armor_item = game.items.get(armor_id) if armor_id else None
-                if armor_item and hasattr(armor_item, 'damage_reduction'):
-                    dr = armor_item.damage_reduction.get(damage_type, 0)
-                    if dr > 0:
-                        old_damage = damage
-                        damage = max(1, damage - dr)
-                        game.send_to_player(player, f"{target_npc.name}'s armor reduces the damage by {old_damage - damage}!")
-            
+            if getattr(game, 'apply_armor_damage_reduction', None):
+                damage = game.apply_armor_damage_reduction(
+                    target_npc, damage, damage_type, game.items,
+                    game.broadcast_to_room, player.room_id
+                )
             # Reduce weapon durability
             if equipped_weapon.reduce_durability(1):
                 game.send_to_player(player, f"Your {equipped_weapon.name} breaks!")
@@ -241,17 +272,11 @@ def attack_command(game, player, args):
                 damage = base_damage + random.randint(1, 3)
                 game.send_to_player(player, f"You attack {target_npc.name} for {damage} damage (unarmed)!")
             
-            # ARMOR MITIGATION for unarmed
-            if hasattr(target_npc, 'equipped') and "armor" in target_npc.equipped:
-                armor_id = target_npc.equipped.get("armor")
-                armor_item = game.items.get(armor_id) if armor_id else None
-                if armor_item and hasattr(armor_item, 'damage_reduction'):
-                    dr = armor_item.damage_reduction.get(damage_type, 0)
-                    if dr > 0:
-                        old_damage = damage
-                        damage = max(1, damage - dr)
-                        game.send_to_player(player, f"{target_npc.name}'s armor reduces the damage by {old_damage - damage}!")
-        
+            if getattr(game, 'apply_armor_damage_reduction', None):
+                damage = game.apply_armor_damage_reduction(
+                    target_npc, damage, "bludgeoning", game.items,
+                    game.broadcast_to_room, player.room_id
+                )
         game.broadcast_to_room(player.room_id, 
                               f"{player.name} attacks {target_npc.name}!", player.name)
         

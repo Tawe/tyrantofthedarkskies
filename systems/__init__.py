@@ -11,7 +11,8 @@ try:
     from .combat_system import CombatManager
     from .time_system import WorldTime, NPCScheduler, StoreHours
     from .quest_system import QuestManager
+    from .runtime_state import RuntimeStateService
     from . import character_creation
-    __all__ = ['CombatManager', 'WorldTime', 'NPCScheduler', 'StoreHours', 'QuestManager', 'character_creation']
+    __all__ = ['CombatManager', 'WorldTime', 'NPCScheduler', 'StoreHours', 'QuestManager', 'RuntimeStateService', 'character_creation']
 except ImportError:
     __all__ = []

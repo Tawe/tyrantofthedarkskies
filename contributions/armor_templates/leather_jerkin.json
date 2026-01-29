@@ -1,0 +1,11 @@
+{
+  "template_id": "leather_jerkin",
+  "name": "Leather Jerkin",
+  "description": "Sturdy leather armor, well-worn but reliable.",
+  "slot": "chest",
+  "weight": 6,
+  "base_dr": 2,
+  "primary_damage_type": "slashing",
+  "damage_types": ["slashing", "piercing"],
+  "max_hp": 40
+}
