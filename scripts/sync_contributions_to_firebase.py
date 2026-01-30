@@ -275,12 +275,32 @@ def main():
         print("Make sure FIREBASE_SERVICE_ACCOUNT environment variable is set.")
         sys.exit(1)
     
-    # Get changed files
-    changed_files = get_changed_files()
-    
-    if not changed_files:
-        print("No contribution files to sync.")
-        return
+    # Get files to sync: from CLI args (single file or --all) or from git diff
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '--all':
+            changed_files = []
+            for contrib_dir in CONTRIBUTION_MAPPING.keys():
+                if os.path.exists(contrib_dir):
+                    for root, dirs, files in os.walk(contrib_dir):
+                        for filename in files:
+                            if filename.endswith('.json') and filename != 'README.md':
+                                filepath = os.path.join(root, filename)
+                                rel_path = os.path.relpath(filepath, repo_root)
+                                changed_files.append(rel_path.replace('\\', '/'))
+            print(f"Syncing all contribution files ({len(changed_files)} total)")
+        else:
+            changed_files = [f.replace('\\', '/') for f in sys.argv[1:] if f.startswith('contributions/') and f.endswith('.json')]
+            if not changed_files:
+                print("Usage: sync_contributions_to_firebase.py [--all] [contributions/path/file.json ...]")
+                sys.exit(1)
+            print(f"Syncing {len(changed_files)} file(s) from command line")
+    else:
+        changed_files = get_changed_files()
+        if not changed_files:
+            print("No contribution files to sync.")
+            print("Tip: Pass a file path to sync one file, or --all to sync everything.")
+            return
     
     print(f"\nFound {len(changed_files)} file(s) to sync:")
     for f in changed_files:

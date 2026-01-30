@@ -835,9 +835,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
         self.load_encounters()
         
     def load_rooms_from_json(self):
-        """Load rooms from Firebase, contributions, or JSON files."""
+        """Load rooms from Firebase, then overlay contributions/rooms/ so local edits win."""
         try:
-            # Try Firebase first
+            # 1) Load from Firebase first (if available)
             if self.use_firebase and self.firebase:
                 try:
                     rooms_data = self.firebase.load_rooms()
@@ -857,11 +857,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             room.interactables = room_data.get("interactables", [])
                             self.rooms[room.room_id] = room
                         print(f"Loaded {len(self.rooms)} rooms from Firebase")
-                        return
                 except Exception as e:
-                    print(f"Error loading rooms from Firebase: {e}, falling back to files")
+                    print(f"Error loading rooms from Firebase: {e}, using contributions only")
             
-            # Try loading from individual contribution files
+            # 2) Overlay (or load) from contributions/rooms/ — local files override Firebase
             contributions_dir = "contributions/rooms"
             if os.path.exists(contributions_dir):
                 count = 0
@@ -872,12 +871,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             with open(filepath, 'r', encoding='utf-8') as f:
                                 room_data = json.load(f)
                                 room = Room(room_data["room_id"], room_data["name"], room_data["description"])
-                                # Load exits - support both simple string format and dict format with doors
                                 exits_data = room_data.get("exits", {})
                                 room.exits = {}
                                 for direction, exit_value in exits_data.items():
-                                    # If it's already a dict (with door/obstacle info), use it as-is
-                                    # If it's a string (simple target), keep it as-is for backward compatibility
                                     room.exits[direction] = exit_value
                                 room.items = room_data.get("items", [])
                                 room.npcs = room_data.get("npcs", [])
@@ -892,11 +888,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             print(f"Error loading room file {filename}: {e}")
                 
                 if count > 0:
-                    print(f"Loaded {count} rooms from contributions/rooms/")
-                    return
+                    print(f"Rooms: {count} from contributions/rooms/ (overlay on Firebase)")
             
-            # No rooms found from Firebase or contributions
-            print("No rooms found, using default rooms")
+            if not self.rooms:
+                print("No rooms found, using default rooms")
         except Exception as e:
             print(f"Error loading rooms from JSON: {e}")
 
