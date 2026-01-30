@@ -33,6 +33,7 @@ jobs:
           pip install -r requirements.txt
       
       - name: Sync contributions to Firebase
+        if: github.event_name == 'push'
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |

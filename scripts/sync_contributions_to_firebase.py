@@ -101,40 +101,49 @@ CONTRIBUTION_MAPPING = {
 
 def get_changed_files():
     """Get list of changed JSON files in contributions directory."""
+    import subprocess
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     changed_files = []
-    
-    # Try to use git diff to detect changed files (works in GitHub Actions)
-    try:
-        import subprocess
-        # Get files changed in the last commit (for push events)
-        # Or files changed compared to base branch (for PR events)
-        result = subprocess.run(
-            ['git', 'diff', '--name-only', '--diff-filter=AM', 'HEAD~1', 'HEAD'],
-            capture_output=True,
-            text=True,
-            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
-        
-        if result.returncode == 0:
-            changed_files = [f.strip() for f in result.stdout.split('\n') if f.strip()]
-            print(f"Found {len(changed_files)} changed file(s) via git diff")
-    except Exception as e:
-        print(f"Warning: Could not use git diff: {e}")
-    
-    # Fallback: Check GitHub event (for PR events or if git diff fails)
-    if not changed_files and os.getenv('GITHUB_EVENT_PATH'):
+    event_name = os.getenv('GITHUB_EVENT_NAME', '')
+    event_path = os.getenv('GITHUB_EVENT_PATH')
+
+    # Push: use before/after SHAs from event so we get all files changed in the push
+    if event_name == 'push' and event_path and os.path.exists(event_path):
         try:
-            with open(os.getenv('GITHUB_EVENT_PATH'), 'r') as f:
+            with open(event_path, 'r') as f:
                 event = json.load(f)
-            
-            # For push events
-            if 'commits' in event:
-                for commit in event.get('commits', []):
-                    changed_files.extend(commit.get('added', []))
-                    changed_files.extend(commit.get('modified', []))
+            before = event.get('before') or ''
+            after = event.get('after') or ''
+            # before is 40 zeros on first push to a new branch or force-push; skip that case
+            invalid_before = len(before) >= 40 and before.strip('0') == ''
+            if before and after and before != after and not invalid_before:
+                result = subprocess.run(
+                    ['git', 'diff', '--name-only', '--diff-filter=AM', before, after],
+                    capture_output=True,
+                    text=True,
+                    cwd=repo_root
+                )
+                if result.returncode == 0:
+                    changed_files = [f.strip() for f in result.stdout.split('\n') if f.strip()]
+                    print(f"Found {len(changed_files)} changed file(s) via git diff {before[:7]}..{after[:7]}")
         except Exception as e:
-            print(f"Warning: Could not parse GitHub event: {e}")
-    
+            print(f"Warning: Could not use push event for diff: {e}")
+
+    # Fallback: git diff HEAD~1 HEAD (last commit only)
+    if not changed_files:
+        try:
+            result = subprocess.run(
+                ['git', 'diff', '--name-only', '--diff-filter=AM', 'HEAD~1', 'HEAD'],
+                capture_output=True,
+                text=True,
+                cwd=repo_root
+            )
+            if result.returncode == 0:
+                changed_files = [f.strip() for f in result.stdout.split('\n') if f.strip()]
+                print(f"Found {len(changed_files)} changed file(s) via git diff HEAD~1 HEAD")
+        except Exception as e:
+            print(f"Warning: Could not use git diff: {e}")
+
     # Final fallback: scan all contribution files (for local testing)
     if not changed_files:
         print("No changed files detected, scanning all contribution files...")
@@ -144,16 +153,16 @@ def get_changed_files():
                     for filename in files:
                         if filename.endswith('.json') and filename != 'README.md':
                             filepath = os.path.join(root, filename)
-                            # Make path relative to repo root
-                            rel_path = os.path.relpath(filepath, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                            rel_path = os.path.relpath(filepath, repo_root)
                             changed_files.append(rel_path.replace('\\', '/'))
-    
+
     # Filter to only JSON files in contributions directory
     contribution_files = [
-        f for f in changed_files 
+        f for f in changed_files
         if f.startswith('contributions/') and f.endswith('.json')
     ]
-    
+    if changed_files and not contribution_files:
+        print(f"Note: {len(changed_files)} file(s) changed but none under contributions/**/*.json")
     return contribution_files
 
 def get_contribution_type(filepath):
