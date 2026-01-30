@@ -47,6 +47,9 @@ mud_data/player_*.json
 # Admin config (sensitive)
 mud_data/admin_config.json
 
+# World time (runtime state, persists between restarts)
+mud_data/world_time.json
+
 # Temporary files
 *.tmp
 *.bak

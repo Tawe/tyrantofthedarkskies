@@ -556,13 +556,23 @@ class MudGame:
                 print("Warning: QuestManager not available. Quest features disabled.")
         
         # Time system
+        self._world_time_save_stop = threading.Event()
+        self._world_time_save_thread = None
         try:
             from systems.time_system import WorldTime, NPCScheduler, StoreHours
             self.world_time = WorldTime()
             self.npc_scheduler = NPCScheduler(self.world_time)
             self.store_hours = StoreHours(self.world_time)
-            # Load saved world time if available
+            # Load saved world time if available (Firebase then local file)
             self.load_world_time()
+            # Periodic save so time persists even on crash/kill (every 5 minutes)
+            def _periodic_save_world_time():
+                interval = 300  # seconds
+                while not self._world_time_save_stop.wait(timeout=interval):
+                    if self.world_time:
+                        self.save_world_time()
+            self._world_time_save_thread = threading.Thread(target=_periodic_save_world_time, daemon=True)
+            self._world_time_save_thread.start()
         except ImportError:
             # Fallback to root import for backward compatibility
             try:
@@ -571,10 +581,18 @@ class MudGame:
                 self.npc_scheduler = NPCScheduler(self.world_time)
                 self.store_hours = StoreHours(self.world_time)
                 self.load_world_time()
+                def _periodic_save_world_time():
+                    interval = 300
+                    while not self._world_time_save_stop.wait(timeout=interval):
+                        if self.world_time:
+                            self.save_world_time()
+                self._world_time_save_thread = threading.Thread(target=_periodic_save_world_time, daemon=True)
+                self._world_time_save_thread.start()
             except ImportError:
                 self.world_time = None
                 self.npc_scheduler = None
                 self.store_hours = None
+                self._world_time_save_stop = None
                 print("Warning: Time system not available. Time features disabled.")
         
         # ANSI color codes for terminal highlighting
@@ -1331,30 +1349,51 @@ that scales by tier, and offers attribute bonuses and starting skills.
         except Exception as e:
             print(f"Error loading armor modifiers: {e}")
 
+    def _world_time_file_path(self):
+        """Path for local world time fallback (persists between restarts without Firebase)."""
+        data_dir = os.getenv('MUD_DATA_DIR', 'mud_data')
+        return os.path.join(data_dir, 'world_time.json')
+
     def load_world_time(self):
-        """Load saved world time from Firebase"""
+        """Load saved world time from Firebase, then local file fallback."""
         try:
             if not self.world_time:
                 return
             
-            # Load from Firebase only
+            loaded = False
+            
+            # 1. Try Firebase first
             if self.use_firebase and self.firebase:
                 try:
                     config_data = self.firebase.load_config('world_time')
                     if config_data and "world_seconds" in config_data:
                         self.world_time.set_world_seconds(config_data["world_seconds"])
                         print(f"Loaded world time from Firebase: Day {self.world_time.get_day_number()}, {self.world_time.get_hour():02d}:{self.world_time.get_minute():02d}")
-                    else:
-                        print("No saved world time found in Firebase, using default")
+                        loaded = True
                 except Exception as e:
                     print(f"Error loading world time from Firebase: {e}")
-            else:
-                print("Warning: Firebase not available, cannot load world time")
+            
+            # 2. Fallback: local file (so time persists even without Firebase or if Firebase had no data)
+            if not loaded:
+                path = self._world_time_file_path()
+                try:
+                    if os.path.isfile(path):
+                        with open(path, 'r') as f:
+                            data = json.load(f)
+                        if data and "world_seconds" in data:
+                            self.world_time.set_world_seconds(data["world_seconds"])
+                            print(f"Loaded world time from file: Day {self.world_time.get_day_number()}, {self.world_time.get_hour():02d}:{self.world_time.get_minute():02d}")
+                            loaded = True
+                except Exception as e:
+                    print(f"Error loading world time from file {path}: {e}")
+            
+            if not loaded:
+                print("No saved world time found, using default (epoch 0)")
         except Exception as e:
             print(f"Error loading world time: {e}")
     
     def save_world_time(self):
-        """Save world time to Firebase"""
+        """Save world time to Firebase and to local file (so it persists between restarts)."""
         try:
             if not self.world_time:
                 return
@@ -1363,14 +1402,23 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 "world_seconds": self.world_time.get_world_seconds()
             }
             
-            # Save to Firebase only
+            # 1. Save to Firebase when available
             if self.use_firebase and self.firebase:
                 try:
                     self.firebase.save_config('world_time', data)
                 except Exception as e:
                     print(f"Error saving world time to Firebase: {e}")
-            else:
-                print("Warning: Firebase not available, cannot save world time")
+            
+            # 2. Always save to local file (backup + persistence when Firebase unavailable)
+            path = self._world_time_file_path()
+            try:
+                dirname = os.path.dirname(path)
+                if dirname and not os.path.isdir(dirname):
+                    os.makedirs(dirname, exist_ok=True)
+                with open(path, 'w') as f:
+                    json.dump(data, f, indent=2)
+            except Exception as e:
+                print(f"Error saving world time to file {path}: {e}")
         except Exception as e:
             print(f"Error saving world time: {e}")
     
@@ -5756,6 +5804,13 @@ if __name__ == "__main__":
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\nShutting down server...")
+            if hasattr(game, '_world_time_save_stop') and game._world_time_save_stop:
+                game._world_time_save_stop.set()
+            try:
+                game.save_world_data()
+                print("World data (including time) saved.")
+            except Exception as e:
+                print(f"Warning: could not save world data on shutdown: {e}")
             if hasattr(game, 'logger') and game.logger:
                 game.logger.log_info("Server shutting down")
     except Exception as e:
