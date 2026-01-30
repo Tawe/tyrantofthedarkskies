@@ -10,15 +10,26 @@ jobs:
     name: Deploy app
     runs-on: ubuntu-latest
     concurrency: deploy-group    # optional: ensure only one action runs at a time
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Verify Fly token
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_API_TOKEN secret is not set."
+            echo "Add it in this repo: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Name: FLY_API_TOKEN (exact, all caps)"
+            echo "Value: your token from https://fly.io/user/tokens"
+            exit 1
+          fi
+          echo "Fly token is set."
+
       - name: Setup Flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
-      
+        uses: superfly/flyctl-actions/setup-flyctl@v1
+
       - name: Deploy to Fly.io
         run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         continue-on-error: false
