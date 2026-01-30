@@ -1,0 +1,15 @@
+{
+  "zone_id": "rift_forest",
+  "name": "Rift Forest",
+  "table": [
+    { "min_roll": 1, "max_roll": 15, "encounter_type": "combat", "composition_key": "rift_skitterlings" },
+    { "min_roll": 16, "max_roll": 30, "encounter_type": "combat", "composition_key": "coral_stalkers" },
+    { "min_roll": 31, "max_roll": 45, "encounter_type": "combat", "composition_key": "rift_wardens" },
+    { "min_roll": 46, "max_roll": 55, "encounter_type": "environmental", "composition_key": null },
+    { "min_roll": 56, "max_roll": 65, "encounter_type": "social", "composition_key": null },
+    { "min_roll": 66, "max_roll": 75, "encounter_type": "exploration", "composition_key": null },
+    { "min_roll": 76, "max_roll": 85, "encounter_type": "combat", "composition_key": "rift_forest_hunter" },
+    { "min_roll": 86, "max_roll": 93, "encounter_type": "combat", "composition_key": "corrupted_guardian" },
+    { "min_roll": 94, "max_roll": 100, "encounter_type": "combat", "composition_key": "rift_heart_sentinel" }
+  ]
+}

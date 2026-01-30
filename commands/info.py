@@ -29,7 +29,7 @@ def help_command(game, player, args):
 
 {game.format_header('Inventory & Items:')}
 {game.format_command('inventory')} or {game.format_command('i')} - Check your inventory
-{game.format_command('get')} or {game.format_command('take')} <item> - Pick up an item from the room
+{game.format_command('get')}, {game.format_command('take')}, or {game.format_command('pickup')} <item> - Pick up an item from the room (or from an interactable)
 {game.format_command('drop')} <item> - Drop an item from your inventory
 {game.format_command('use')} <item> - Use a consumable item (potions, etc.)
 {game.format_command('equip')} <item> or {game.format_command('equip')} <slot> <item> - Equip a weapon or armor

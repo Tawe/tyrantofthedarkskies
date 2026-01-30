@@ -1,9 +1,9 @@
 {
   "id": "wood",
   "name": "Wood",
-  "damage_bonus": -1,
-  "crit_bonus": 0.02,
-  "speed_multiplier": 0.9,
-  "durability_bonus": -20,
-  "notes": "Cheap and fast, unsuitable for heavy combat"
+  "damage_bonus": 0,
+  "crit_bonus": -0.01,
+  "speed_multiplier": 1.0,
+  "durability_bonus": 10,
+  "notes": "Light, common, not great."
 }

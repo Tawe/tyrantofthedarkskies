@@ -1,0 +1,10 @@
+{
+  "item_id": "weapon_stick_wood",
+  "name": "Wood Stick",
+  "description": "A salt-bleached driftwood stick. Straight enough to swing, splintery enough to regret.",
+  "item_type": "weapon",
+  "value": 0,
+  "stats": {},
+  "weapon_template_id": "stick",
+  "weapon_modifier_id": "wood"
+}

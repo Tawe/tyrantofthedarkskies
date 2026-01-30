@@ -28,6 +28,25 @@ def look_command(game, player, args):
         if npc:
             look_npc(game, player, npc)
             return
+
+        # Try interactable (e.g. look barrel)
+        interactables = getattr(room, "interactables", []) or []
+        target = " ".join(args).lower()
+        for obj in interactables:
+            keywords = (obj.get("keywords") or []) + [obj.get("name", "")]
+            if any(target in str(k).lower() or str(k).lower() in target for k in keywords):
+                text = obj.get("examine_text", "You see nothing special.")
+                output = f"\n{game.format_header(obj.get('name', 'Object').title())}\n{text}\n"
+                actions = []
+                if obj.get("actions", {}).get("examine"):
+                    actions.append(f"examine {obj.get('name', 'object')}")
+                take_cfg = obj.get("actions", {}).get("take")
+                if isinstance(take_cfg, dict) and take_cfg.get("gives_item"):
+                    actions.append(f"take stick")
+                if actions:
+                    output += f"\nActions: {', '.join(actions)}"
+                game.send_to_player(player, output.strip())
+                return
         
         # Handle "look <direction>" command
         direction = args[0].lower()

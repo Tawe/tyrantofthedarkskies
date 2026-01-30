@@ -14,63 +14,7 @@ import asyncio
 import queue
 import traceback
 
-# Random encounter tables (docs/random_encounters.md). (min_roll, max_roll, encounter_type, composition_key).
-# composition_key -> list of (template_id, min_count, max_count).
-ZONE_ENCOUNTER_TABLES = {
-    "unflooded_sea": [
-        (1, 20, "combat", "kelp_fleas"),
-        (21, 35, "combat", "reef_crabs"),
-        (36, 45, "combat", "rift_wisps"),
-        (46, 55, "combat", "unflooded_stalker"),
-        (56, 65, "combat", "crabfolk_scouts"),
-        (66, 75, "social", None),
-        (76, 85, "environmental", None),
-        (86, 93, "exploration", None),
-        (94, 100, "combat", "ancient_sentinel"),
-    ],
-    "kelp_plains": [
-        (1, 15, "combat", "kelp_fleas_plains"),
-        (16, 30, "combat", "kelp_crawlers"),
-        (31, 45, "combat", "reef_crabs_plains"),
-        (46, 55, "combat", "kelp_shade"),
-        (56, 65, "social", None),
-        (66, 75, "environmental", None),
-        (76, 85, "exploration", None),
-        (86, 93, "combat", "kelp_plains_alpha"),
-        (94, 100, "combat", "kelp_leviathan_spawn"),
-    ],
-    "rift_forest": [
-        (1, 15, "combat", "rift_skitterlings"),
-        (16, 30, "combat", "coral_stalkers"),
-        (31, 45, "combat", "rift_wardens"),
-        (46, 55, "environmental", None),
-        (56, 65, "social", None),
-        (66, 75, "exploration", None),
-        (76, 85, "combat", "rift_forest_hunter"),
-        (86, 93, "combat", "corrupted_guardian"),
-        (94, 100, "combat", "rift_heart_sentinel"),
-    ],
-}
-ENCOUNTER_COMPOSITIONS = {
-    "kelp_fleas": [("kelp_flea", 3, 5)],
-    "reef_crabs": [("reef_crab", 2, 2), ("reef_crab_brute", 1, 1)],
-    "rift_wisps": [("rift_wisp", 1, 2)],
-    "unflooded_stalker": [("unflooded_stalker", 1, 1)],
-    "crabfolk_scouts": [("crabfolk_scout", 2, 3)],
-    "ancient_sentinel": [("ancient_sentinel_fragment", 1, 1)],
-    "kelp_fleas_plains": [("kelp_flea", 4, 6)],
-    "kelp_crawlers": [("kelp_flea", 2, 2), ("kelp_crawler", 1, 1)],
-    "reef_crabs_plains": [("reef_crab_brute", 1, 1), ("reef_crab", 1, 2)],
-    "kelp_shade": [("kelp_shade", 1, 1)],
-    "kelp_plains_alpha": [("kelp_plains_alpha", 1, 1)],
-    "kelp_leviathan_spawn": [("kelp_leviathan_spawn", 1, 1)],
-    "rift_skitterlings": [("rift_skitterling", 3, 5)],
-    "coral_stalkers": [("coral_stalker", 2, 2)],
-    "rift_wardens": [("rift_warden", 1, 1), ("rift_warden_mender", 1, 1)],
-    "rift_forest_hunter": [("rift_forest_hunter", 1, 1)],
-    "corrupted_guardian": [("corrupted_guardian", 1, 1)],
-    "rift_heart_sentinel": [("rift_heart_sentinel", 1, 1)],
-}
+# Random encounter config (tables/compositions loaded from contributions/encounters/)
 ENCOUNTER_COOLDOWN_SECONDS = 120
 ENCOUNTER_ROLL_CHANCE = 0.35
 
@@ -187,6 +131,8 @@ class Room:
         self.spawn_groups = []
         # Zone for random encounter table (docs/random_encounters.md): unflooded_sea, kelp_plains, rift_forest
         self.zone = None
+        # Interactables: barrel of sticks, etc. (object_id, name, keywords, examine_text, actions)
+        self.interactables = []
 
     def to_dict(self):
         return {
@@ -200,6 +146,7 @@ class Room:
             "combat_tags": self.combat_tags,
             "spawn_groups": getattr(self, "spawn_groups", []),
             "zone": getattr(self, "zone", None),
+            "interactables": getattr(self, "interactables", []),
         }
     
     def from_dict(self, data):
@@ -606,6 +553,10 @@ class MudGame:
         # Exploration tracking (for EXP rewards)
         self.explored_rooms = defaultdict(set)  # {player_name: set of room_ids}
 
+        # Zone random encounters (loaded from contributions/encounters/)
+        self.zone_encounter_tables = {}  # zone_id -> list of (min_roll, max_roll, encounter_type, composition_key)
+        self.encounter_compositions = {}  # composition_key -> list of (template_id, min_count, max_count)
+
         # Runtime state (docs/runtime_state.md: room_state, entity instances, positions)
         try:
             from systems.runtime_state import RuntimeStateService
@@ -684,15 +635,15 @@ class MudGame:
             'brown': '\033[38;5;130m'
         }
         
+        self.load_weapons()
+        self.load_weapon_modifiers()
+        self.load_armor_templates()
+        self.load_armor_modifiers()
         self.load_world_data()
         self.load_maneuvers()
         self.load_planets()
         self.load_races()
         self.load_starsigns()
-        self.load_weapons()
-        self.load_weapon_modifiers()
-        self.load_armor_templates()
-        self.load_armor_modifiers()
         self.load_npc_schedules()
         self.load_store_hours()
         self.create_default_world()
@@ -881,6 +832,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         self.load_rooms_from_json()
         self.load_npcs_from_json()
         self.load_items_from_json()
+        self.load_encounters()
         
     def load_rooms_from_json(self):
         """Load rooms from Firebase, contributions, or JSON files."""
@@ -902,6 +854,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             room.combat_tags = room_data.get("combat_tags", [])
                             room.spawn_groups = room_data.get("spawn_groups", [])
                             room.zone = room_data.get("zone")
+                            room.interactables = room_data.get("interactables", [])
                             self.rooms[room.room_id] = room
                         print(f"Loaded {len(self.rooms)} rooms from Firebase")
                         return
@@ -932,6 +885,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 room.combat_tags = room_data.get("combat_tags", [])
                                 room.spawn_groups = room_data.get("spawn_groups", [])
                                 room.zone = room_data.get("zone")
+                                room.interactables = room_data.get("interactables", [])
                                 self.rooms[room.room_id] = room
                                 count += 1
                         except Exception as e:
@@ -945,6 +899,45 @@ that scales by tier, and offers attribute bonuses and starting skills.
             print("No rooms found, using default rooms")
         except Exception as e:
             print(f"Error loading rooms from JSON: {e}")
+
+    def load_encounters(self):
+        """Load zone encounter tables and compositions from contributions/encounters/ (docs/random_encounters.md)."""
+        encounters_dir = "contributions/encounters"
+        if not os.path.exists(encounters_dir):
+            return
+        # Load compositions: composition_key -> list of (template_id, min_count, max_count)
+        comp_path = os.path.join(encounters_dir, "compositions.json")
+        if os.path.exists(comp_path):
+            try:
+                with open(comp_path, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                for key, entries in raw.items():
+                    self.encounter_compositions[key] = [
+                        (e["template_id"], e["min_count"], e["max_count"])
+                        for e in entries
+                    ]
+            except Exception as e:
+                print(f"Error loading encounter compositions: {e}")
+        # Load zone tables: zone_id -> list of (min_roll, max_roll, encounter_type, composition_key)
+        for filename in os.listdir(encounters_dir):
+            if filename in ("compositions.json", "README.md") or not filename.endswith(".json"):
+                continue
+            filepath = os.path.join(encounters_dir, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                zone_id = data.get("zone_id")
+                table = data.get("table", [])
+                if not zone_id:
+                    continue
+                self.zone_encounter_tables[zone_id] = [
+                    (e["min_roll"], e["max_roll"], e["encounter_type"], e.get("composition_key"))
+                    for e in table
+                ]
+            except Exception as e:
+                print(f"Error loading encounter zone {filename}: {e}")
+        if self.zone_encounter_tables or self.encounter_compositions:
+            print(f"Loaded {len(self.zone_encounter_tables)} zone encounter tables, {len(self.encounter_compositions)} compositions")
 
     def _load_creatures_from_contributions(self):
         """Load creature templates from contributions/creatures/ into self.npcs.
@@ -1139,6 +1132,18 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                         item = Item(item_data["item_id"], item_data["name"], item_data["description"], item_data.get("item_type", "item"))
                                         item.from_dict(item_data)
                                         
+                                        # If weapon has both template and modifier, build via create_weapon_item
+                                        if (item.item_type == "weapon" and item_data.get("weapon_template_id") and item_data.get("weapon_modifier_id")
+                                                and self.weapons and self.weapon_modifiers):
+                                            created = self.create_weapon_item(
+                                                item_data["weapon_template_id"],
+                                                item_data["weapon_modifier_id"],
+                                                item_data["item_id"]
+                                            )
+                                            if created:
+                                                self.items[created.item_id] = created
+                                                count += 1
+                                                continue
                                         # If item is a weapon but missing weapon stats, try to load from template
                                         if item.item_type == "weapon" and item.weapon_template_id and item.weapon_template_id in self.weapons:
                                             template = self.weapons[item.weapon_template_id]
@@ -1618,7 +1623,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if not room:
             return
         zone = getattr(room, "zone", None)
-        if not zone or zone not in ZONE_ENCOUNTER_TABLES:
+        if not zone or zone not in self.zone_encounter_tables:
             return
         state = self.runtime_state.get_or_create_room_state(room_id)
         now = time.time()
@@ -1628,7 +1633,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if now - last_roll < ENCOUNTER_COOLDOWN_SECONDS:
             return
         roll = random.randint(1, 100)
-        table = ZONE_ENCOUNTER_TABLES[zone]
+        table = self.zone_encounter_tables[zone]
         for min_r, max_r, etype, comp_key in table:
             if min_r <= roll <= max_r:
                 break
@@ -1637,7 +1642,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if etype != "combat" or not comp_key:
             self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
             return
-        composition = ENCOUNTER_COMPOSITIONS.get(comp_key)
+        composition = self.encounter_compositions.get(comp_key)
         if not composition:
             return
         encounter_id = str(uuid.uuid4())
@@ -2127,6 +2132,25 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 self.look_npc(player, npc)
                 return
 
+            # Try interactable (e.g. look barrel)
+            interactables = getattr(room, "interactables", []) or []
+            target = " ".join(args).lower()
+            for obj in interactables:
+                keywords = (obj.get("keywords") or []) + [obj.get("name", "")]
+                if any(target in str(k).lower() or str(k).lower() in target for k in keywords):
+                    text = obj.get("examine_text", "You see nothing special.")
+                    output = f"\n{self.format_header(obj.get('name', 'Object').title())}\n{text}\n"
+                    actions = []
+                    if obj.get("actions", {}).get("examine"):
+                        actions.append(f"examine {obj.get('name', 'object')}")
+                    take_cfg = obj.get("actions", {}).get("take")
+                    if isinstance(take_cfg, dict) and take_cfg.get("gives_item"):
+                        actions.append("take stick")
+                    if actions:
+                        output += f"\nActions: {', '.join(actions)}"
+                    self.send_to_player(player, output.strip())
+                    return
+
             # Try to find runtime entity instance (spawned creature) by name
             if self.runtime_state:
                 for inst in self.runtime_state.get_entities_in_room(room.room_id):
@@ -2554,7 +2578,61 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 self.send_to_player(player, self.format_success(f"You pick up {item_display}."))
                 self.broadcast_to_room(player.room_id, f"{player.name} picks up {item_display}.", player.name)
                 return
-                
+
+        # B4: Interactables with take action (e.g. take stick, take stick from barrel)
+        interactables = getattr(room, "interactables", []) or []
+        take_configs = []
+        for obj in interactables:
+            actions = obj.get("actions") or {}
+            take_cfg = actions.get("take") if isinstance(actions.get("take"), dict) else None
+            if not take_cfg or not take_cfg.get("gives_item"):
+                continue
+            keywords = (obj.get("keywords") or []) + [obj.get("name", "").lower()]
+            # "take stick" or "take stick from barrel" -> match thing or source
+            if " from " in item_name:
+                part, source = item_name.split(" from ", 1)
+                part, source = part.strip(), source.strip()
+                if source and any(source in str(k).lower() for k in keywords):
+                    take_configs.append((obj, take_cfg, part or item_name))
+                elif part and any(part in str(k).lower() for k in keywords):
+                    take_configs.append((obj, take_cfg, part))
+            else:
+                if any(item_name in str(k).lower() or str(k).lower() in item_name for k in keywords):
+                    take_configs.append((obj, take_cfg, item_name))
+        if len(take_configs) > 1:
+            sources = [t[0].get("name", t[0].get("object_id", "?")) for t in take_configs]
+            self.send_to_player(player, f"Take from: {' '.join(f'[{s}]' for s in sources)}?")
+            return
+        if len(take_configs) == 1:
+            obj, take_cfg, _ = take_configs[0]
+            gives_item = take_cfg.get("gives_item")
+            limit = take_cfg.get("limit_per_player")
+            cooldown_sec = take_cfg.get("cooldown_seconds", 0)
+            empty_text = take_cfg.get("empty_text", "There's nothing to take.")
+            state = getattr(player, "interactable_takes", None) or {}
+            if not isinstance(state, dict):
+                state = {}
+            key = obj.get("object_id", "?")
+            now = time.time()
+            entry = state.get(key, {"count": 0, "last_at": 0})
+            if limit is not None and entry.get("count", 0) >= limit:
+                self.send_to_player(player, empty_text)
+                return
+            if cooldown_sec and (now - entry.get("last_at", 0)) < cooldown_sec:
+                self.send_to_player(player, empty_text)
+                return
+            if gives_item not in self.items:
+                self.send_to_player(player, "You can't take that right now.")
+                return
+            state[key] = {"count": entry.get("count", 0) + 1, "last_at": now}
+            player.interactable_takes = state
+            player.inventory.append(gives_item)
+            item = self.items.get(gives_item)
+            item_display = self.format_item(item.name) if item else gives_item
+            self.send_to_player(player, self.format_success(f"You take {item_display} from the {obj.get('name', 'object')}."))
+            self.broadcast_to_room(player.room_id, f"{player.name} takes something from the {obj.get('name', 'object')}.", player.name)
+            return
+
         self.send_to_player(player, "You don't see that here.")
         
     def drop_command(self, player, args):
@@ -5053,8 +5131,11 @@ First, choose your race (affects attributes and starting skills):
             elif cmd in ["inventory", "i"]:
                 inventory_command(self, player, args)
                 command_handled = True
-            elif cmd in ["get", "take"]:
-                get_command(self, player, args)
+            elif cmd in ["get", "take", "pickup"]:
+                self.get_command(player, args)
+                command_handled = True
+            elif cmd == "pick" and args and args[0].lower() == "up":
+                self.get_command(player, args[1:])
                 command_handled = True
             elif cmd == "drop":
                 drop_command(self, player, args)
@@ -5163,8 +5244,11 @@ First, choose your race (affects attributes and starting skills):
             elif cmd in ["inventory", "i"]:
                 self.inventory_command(player, args)
                 command_handled = True
-            elif cmd in ["get", "take"]:
+            elif cmd in ["get", "take", "pickup"]:
                 self.get_command(player, args)
+                command_handled = True
+            elif cmd == "pick" and args and args[0].lower() == "up":
+                self.get_command(player, args[1:])
                 command_handled = True
             elif cmd == "drop":
                 self.drop_command(player, args)

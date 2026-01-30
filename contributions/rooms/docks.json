@@ -1,7 +1,7 @@
 {
   "room_id": "docks",
   "name": "The Docks",
-  "description": "Constantly active with ships arriving and departing. The docks are the lifeblood of New Cove, handling travel, trade, and sea-based contracts. The creaking of ships, calls of sailors, and the endless motion of the sea create a vibrant atmosphere. This is where you first arrived on the Refound Continent. Behind you, the lantern glow of the Black Anchor cuts through the mist at the edge of the pier.",
+  "description": "Constantly active with ships arriving and departing. The docks are the lifeblood of New Cove, handling travel, trade, and sea-based contracts. The creaking of ships, calls of sailors, and the endless motion of the sea create a vibrant atmosphere. This is where you first arrived on the Refound Continent. Near a mooring post, a rain-dark barrel of driftwood sticks sits out for anyone desperate enough to arm themselves.",
   "exits": {
     "west": "black_anchor_common",
     "northwest": "governors_house",
@@ -15,5 +15,22 @@
     "safe",
     "public"
   ],
-  "combat_tags": []
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "barrel_of_sticks",
+      "name": "barrel of sticks",
+      "keywords": ["barrel", "sticks", "stick", "driftwood"],
+      "examine_text": "A battered barrel packed with salt-bleached driftwood. The sticks are straight enough to swing, splintery enough to regret.",
+      "actions": {
+        "examine": true,
+        "take": {
+          "gives_item": "weapon_stick_wood",
+          "limit_per_player": 1,
+          "cooldown_seconds": 600,
+          "empty_text": "The barrel's been picked clean for now."
+        }
+      }
+    }
+  ]
 }

@@ -1,0 +1,60 @@
+{
+  "kelp_fleas": [
+    { "template_id": "kelp_flea", "min_count": 3, "max_count": 5 }
+  ],
+  "reef_crabs": [
+    { "template_id": "reef_crab", "min_count": 2, "max_count": 2 },
+    { "template_id": "reef_crab_brute", "min_count": 1, "max_count": 1 }
+  ],
+  "rift_wisps": [
+    { "template_id": "rift_wisp", "min_count": 1, "max_count": 2 }
+  ],
+  "unflooded_stalker": [
+    { "template_id": "unflooded_stalker", "min_count": 1, "max_count": 1 }
+  ],
+  "crabfolk_scouts": [
+    { "template_id": "crabfolk_scout", "min_count": 2, "max_count": 3 }
+  ],
+  "ancient_sentinel": [
+    { "template_id": "ancient_sentinel_fragment", "min_count": 1, "max_count": 1 }
+  ],
+  "kelp_fleas_plains": [
+    { "template_id": "kelp_flea", "min_count": 4, "max_count": 6 }
+  ],
+  "kelp_crawlers": [
+    { "template_id": "kelp_flea", "min_count": 2, "max_count": 2 },
+    { "template_id": "kelp_crawler", "min_count": 1, "max_count": 1 }
+  ],
+  "reef_crabs_plains": [
+    { "template_id": "reef_crab_brute", "min_count": 1, "max_count": 1 },
+    { "template_id": "reef_crab", "min_count": 1, "max_count": 2 }
+  ],
+  "kelp_shade": [
+    { "template_id": "kelp_shade", "min_count": 1, "max_count": 1 }
+  ],
+  "kelp_plains_alpha": [
+    { "template_id": "kelp_plains_alpha", "min_count": 1, "max_count": 1 }
+  ],
+  "kelp_leviathan_spawn": [
+    { "template_id": "kelp_leviathan_spawn", "min_count": 1, "max_count": 1 }
+  ],
+  "rift_skitterlings": [
+    { "template_id": "rift_skitterling", "min_count": 3, "max_count": 5 }
+  ],
+  "coral_stalkers": [
+    { "template_id": "coral_stalker", "min_count": 2, "max_count": 2 }
+  ],
+  "rift_wardens": [
+    { "template_id": "rift_warden", "min_count": 1, "max_count": 1 },
+    { "template_id": "rift_warden_mender", "min_count": 1, "max_count": 1 }
+  ],
+  "rift_forest_hunter": [
+    { "template_id": "rift_forest_hunter", "min_count": 1, "max_count": 1 }
+  ],
+  "corrupted_guardian": [
+    { "template_id": "corrupted_guardian", "min_count": 1, "max_count": 1 }
+  ],
+  "rift_heart_sentinel": [
+    { "template_id": "rift_heart_sentinel", "min_count": 1, "max_count": 1 }
+  ]
+}

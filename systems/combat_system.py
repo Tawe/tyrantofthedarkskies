@@ -265,15 +265,15 @@ class CombatManager:
         
         Design doc:
         - Weapons define `speed_cost` (lower = faster, higher = slower).
-        - Unarmed baseline: speed_cost = 0.8
+        - Unarmed baseline: speed_cost = 1.0 (worse than stick 0.9).
         """
         if hasattr(entity, 'equipped') and "weapon" in entity.equipped and self.items_dict:
             weapon_id = entity.equipped["weapon"]
             weapon = self.items_dict.get(weapon_id)
             if weapon and hasattr(weapon, 'get_effective_speed_cost'):
                 return weapon.get_effective_speed_cost()
-        # Unarmed profile from design doc
-        return 0.8
+        # Unarmed: 1-1 damage, speed 1.0, crit 0.01
+        return 1.0
     
     def _get_turn_timeout(self, entity):
         """Calculate attack interval based on weapon speed.
@@ -587,6 +587,10 @@ class CombatManager:
                     crit_roll = random.random()
                     if crit_roll <= equipped_weapon.get_effective_crit_chance():
                         is_critical = True
+                else:
+                    # Unarmed crit 0.01
+                    if random.random() <= 0.01:
+                        is_critical = True
                 
                 # Check for glancing hit (defender's dodge was close)
                 if defender_roll <= defender_effective and defender_roll >= defender_effective * 0.8:
@@ -622,14 +626,14 @@ class CombatManager:
                 # Weapon breaks - would need to notify player
                 pass
         else:
-            # Unarmed combat
-            base_damage = attacker.get_attribute_bonus("physical") + 3
+            # Unarmed: 1-1 damage, crit 0.01 (worse than stick)
+            base_damage = 1
             if is_critical:
                 damage = base_damage * 2
             elif is_glancing:
                 damage = max(1, base_damage // 2)
             else:
-                damage = base_damage + random.randint(1, 3)
+                damage = base_damage
         
         # ARMOR MITIGATION (docs/armor_system.md): DR stacks; each piece degrades by amount absorbed
         if items_dict:

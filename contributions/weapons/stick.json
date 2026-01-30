@@ -1,0 +1,15 @@
+{
+  "id": "stick",
+  "name": "Stick",
+  "category": "Melee",
+  "class": "Improvised",
+  "hands": 1,
+  "range": 0,
+  "damage_min": 1,
+  "damage_max": 2,
+  "damage_type": "bludgeoning",
+  "crit_chance": 0.02,
+  "speed_cost": 0.9,
+  "durability": 15,
+  "description": "Very bad, but better than unarmed."
+}

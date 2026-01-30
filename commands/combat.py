@@ -233,6 +233,9 @@ def attack_command(game, player, args):
                 crit_roll = random.random()
                 if crit_roll <= equipped_weapon.get_effective_crit_chance():
                     is_critical = True
+            else:
+                if random.random() <= 0.01:
+                    is_critical = True
             
             if is_critical:
                 damage = base_damage * 2
@@ -259,8 +262,8 @@ def attack_command(game, player, args):
                 if weapon_id in player.inventory:
                     player.inventory.remove(weapon_id)
         else:
-            # Unarmed combat
-            base_damage = player.get_attribute_bonus("physical") + 3
+            # Unarmed: 1-1 damage, crit 0.01 (worse than stick)
+            base_damage = 1
             damage_type = "bludgeoning"
             if is_critical:
                 damage = base_damage * 2
@@ -269,7 +272,7 @@ def attack_command(game, player, args):
                 damage = max(1, base_damage // 2)
                 game.send_to_player(player, f"You land a glancing blow on {target_npc.name} for {damage} damage (unarmed)!")
             else:
-                damage = base_damage + random.randint(1, 3)
+                damage = base_damage
                 game.send_to_player(player, f"You attack {target_npc.name} for {damage} damage (unarmed)!")
             
             if getattr(game, 'apply_armor_damage_reduction', None):
