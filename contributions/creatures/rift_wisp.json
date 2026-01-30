@@ -1,0 +1,36 @@
+{
+  "template_id": "rift_wisp",
+  "name": "Rift Wisp",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [2, 5],
+  "role": "artillery",
+  "stats": {
+    "hp_max": 18,
+    "attack": {
+      "speed_cost": 0.9,
+      "accuracy": 12,
+      "damage_min": 2,
+      "damage_max": 5,
+      "damage_type": "force",
+      "crit_chance": 0.06
+    }
+  },
+  "skills": {
+    "Dodging": 12,
+    "Fighting": 0
+  },
+  "behaviors": {
+    "preferred_range_band": "far",
+    "pursue": "none",
+    "leash_radius": 1,
+    "leash_time": 10,
+    "threat_profile": "sniper",
+    "morale": { "flee_at_hp_pct": 0.25 }
+  },
+  "loot": {
+    "loot_table_id": "loot_rift_wisp",
+    "xp_value": 22
+  },
+  "maneuvers": ["wisp_bolt", "phase_flicker"]
+}

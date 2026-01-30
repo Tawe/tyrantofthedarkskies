@@ -1,0 +1,37 @@
+{
+  "template_id": "corrupted_guardian",
+  "name": "Corrupted Guardian",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [4, 5],
+  "role": "brute",
+  "stats": {
+    "hp_max": 55,
+    "attack": {
+      "speed_cost": 1.4,
+      "accuracy": 13,
+      "damage_min": 5,
+      "damage_max": 10,
+      "damage_type": "necrotic",
+      "crit_chance": 0.06
+    }
+  },
+  "skills": {
+    "Dodging": 6,
+    "Fighting": 15,
+    "Resisting": 14
+  },
+  "behaviors": {
+    "preferred_range_band": "engaged",
+    "pursue": "short",
+    "leash_radius": 1,
+    "leash_time": 18,
+    "threat_profile": "default",
+    "morale": { "flee_at_hp_pct": 0.0 }
+  },
+  "loot": {
+    "loot_table_id": "loot_corrupted_guardian",
+    "xp_value": 70
+  },
+  "maneuvers": ["blight_strike", "aura_of_rot"]
+}

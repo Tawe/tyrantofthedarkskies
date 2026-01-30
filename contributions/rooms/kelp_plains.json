@@ -7,9 +7,18 @@
     "south": "buried_ruins"
   },
   "items": [],
-  "npcs": ["kelp_flea_1", "kelp_flea_2"],
+  "npcs": [],
+  "spawn_groups": [
+    {
+      "spawn_id": "kelp_flea",
+      "template_id": "kelp_flea",
+      "max_alive": 2,
+      "cooldown_seconds": 120
+    }
+  ],
   "flags": [
     "dangerous"
   ],
-  "combat_tags": ["open", "obscured"]
+  "combat_tags": ["open", "obscured"],
+  "zone": "kelp_plains"
 }

@@ -1,0 +1,37 @@
+{
+  "template_id": "rift_skitterling",
+  "name": "Rift Skitterling",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [1, 4],
+  "role": "minion",
+  "stats": {
+    "hp_max": 7,
+    "attack": {
+      "speed_cost": 0.8,
+      "accuracy": 10,
+      "damage_min": 1,
+      "damage_max": 3,
+      "damage_type": "slashing",
+      "crit_chance": 0.04
+    }
+  },
+  "skills": {
+    "Dodging": 13,
+    "Fighting": 9,
+    "Climbing": 16
+  },
+  "behaviors": {
+    "preferred_range_band": "engaged",
+    "pursue": "short",
+    "leash_radius": 2,
+    "leash_time": 14,
+    "threat_profile": "swarm",
+    "morale": { "flee_at_hp_pct": 0.0 }
+  },
+  "loot": {
+    "loot_table_id": "loot_rift_skitterling",
+    "xp_value": 7
+  },
+  "maneuvers": ["skitter", "pack_bite"]
+}

@@ -13,5 +13,6 @@
   "flags": [
     "dangerous"
   ],
-  "combat_tags": []
+  "combat_tags": [],
+  "zone": "unflooded_sea"
 }

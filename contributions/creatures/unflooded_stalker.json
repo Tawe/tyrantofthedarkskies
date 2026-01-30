@@ -1,0 +1,37 @@
+{
+  "template_id": "unflooded_stalker",
+  "name": "Unflooded Stalker",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [3, 5],
+  "role": "brute",
+  "stats": {
+    "hp_max": 38,
+    "attack": {
+      "speed_cost": 1.1,
+      "accuracy": 13,
+      "damage_min": 4,
+      "damage_max": 7,
+      "damage_type": "slashing",
+      "crit_chance": 0.07
+    }
+  },
+  "skills": {
+    "Dodging": 10,
+    "Fighting": 14,
+    "Sneaking": 14
+  },
+  "behaviors": {
+    "preferred_range_band": "engaged",
+    "pursue": "short",
+    "leash_radius": 2,
+    "leash_time": 22,
+    "threat_profile": "default",
+    "morale": { "flee_at_hp_pct": 0.1 }
+  },
+  "loot": {
+    "loot_table_id": "loot_unflooded_stalker",
+    "xp_value": 32
+  },
+  "maneuvers": ["ambush_lunge", "mauling_bite"]
+}

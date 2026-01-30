@@ -70,6 +70,15 @@ class RuntimeStateService:
         state["last_active_at"] = _now_ts()
         self.data_layer.save_room_state(room_id, state)
 
+    def set_room_state_fields(self, room_id: str, **fields) -> None:
+        """Update arbitrary room_state fields (e.g. last_encounter_roll_at for random encounters)."""
+        if not self._enabled():
+            return
+        state = self.get_or_create_room_state(room_id)
+        for key, value in fields.items():
+            state[key] = value
+        self.data_layer.save_room_state(room_id, state)
+
     def get_spawn_timer(self, room_id: str, spawn_id: str) -> Dict:
         """R5/B5: Get timer for spawn_id (last_spawn_at, next_spawn_at, alive_count)."""
         state = self.get_or_create_room_state(room_id)

@@ -1,0 +1,37 @@
+{
+  "template_id": "kelp_shade",
+  "name": "Kelp Shade",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [3, 5],
+  "role": "controller",
+  "stats": {
+    "hp_max": 26,
+    "attack": {
+      "speed_cost": 1.0,
+      "accuracy": 12,
+      "damage_min": 2,
+      "damage_max": 5,
+      "damage_type": "psychic",
+      "crit_chance": 0.06
+    }
+  },
+  "skills": {
+    "Dodging": 12,
+    "Fighting": 8,
+    "Sneaking": 12
+  },
+  "behaviors": {
+    "preferred_range_band": "near",
+    "pursue": "short",
+    "leash_radius": 2,
+    "leash_time": 20,
+    "threat_profile": "controller",
+    "morale": { "flee_at_hp_pct": 0.25 }
+  },
+  "loot": {
+    "loot_table_id": "loot_kelp_shade",
+    "xp_value": 30
+  },
+  "maneuvers": ["dread_whisper", "veil_step"]
+}

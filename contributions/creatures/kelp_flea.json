@@ -1,0 +1,37 @@
+{
+  "template_id": "kelp_flea",
+  "name": "Kelp Flea",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [1, 3],
+  "role": "minion",
+  "stats": {
+    "hp_max": 6,
+    "attack": {
+      "speed_cost": 0.7,
+      "accuracy": 10,
+      "damage_min": 1,
+      "damage_max": 2,
+      "damage_type": "piercing",
+      "crit_chance": 0.03
+    }
+  },
+  "skills": {
+    "Dodging": 14,
+    "Fighting": 8,
+    "Climbing": 18
+  },
+  "behaviors": {
+    "preferred_range_band": "engaged",
+    "pursue": "short",
+    "leash_radius": 1,
+    "leash_time": 12,
+    "threat_profile": "swarm",
+    "morale": { "flee_at_hp_pct": 0.0 }
+  },
+  "loot": {
+    "loot_table_id": "loot_kelp_flea",
+    "xp_value": 6
+  },
+  "maneuvers": ["swarm_snap", "skitter"]
+}

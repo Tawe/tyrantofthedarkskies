@@ -1,0 +1,36 @@
+{
+  "template_id": "kelp_crawler",
+  "name": "Kelp Crawler",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [2, 5],
+  "role": "controller",
+  "stats": {
+    "hp_max": 22,
+    "attack": {
+      "speed_cost": 1.1,
+      "accuracy": 11,
+      "damage_min": 2,
+      "damage_max": 4,
+      "damage_type": "poison",
+      "crit_chance": 0.05
+    }
+  },
+  "skills": {
+    "Dodging": 10,
+    "Fighting": 10
+  },
+  "behaviors": {
+    "preferred_range_band": "near",
+    "pursue": "short",
+    "leash_radius": 2,
+    "leash_time": 20,
+    "threat_profile": "controller",
+    "morale": { "flee_at_hp_pct": 0.2 }
+  },
+  "loot": {
+    "loot_table_id": "loot_kelp_crawler",
+    "xp_value": 24
+  },
+  "maneuvers": ["entangle", "drag_under"]
+}

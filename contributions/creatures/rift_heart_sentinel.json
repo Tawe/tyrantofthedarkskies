@@ -1,0 +1,37 @@
+{
+  "template_id": "rift_heart_sentinel",
+  "name": "Rift Heart Sentinel",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [5, 5],
+  "role": "boss",
+  "stats": {
+    "hp_max": 130,
+    "attack": {
+      "speed_cost": 1.5,
+      "accuracy": 14,
+      "damage_min": 7,
+      "damage_max": 14,
+      "damage_type": "earth",
+      "crit_chance": 0.06
+    }
+  },
+  "skills": {
+    "Dodging": 5,
+    "Fighting": 16,
+    "Resisting": 15
+  },
+  "behaviors": {
+    "preferred_range_band": "engaged",
+    "pursue": "short",
+    "leash_radius": 1,
+    "leash_time": 18,
+    "threat_profile": "default",
+    "morale": { "flee_at_hp_pct": 0.0 }
+  },
+  "loot": {
+    "loot_table_id": "loot_rift_heart_sentinel",
+    "xp_value": 180
+  },
+  "maneuvers": ["rift_quake", "coral_shards", "anchor_roar"]
+}

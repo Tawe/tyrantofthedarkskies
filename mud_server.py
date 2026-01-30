@@ -5,6 +5,7 @@ import time
 import random
 import re
 import http
+import uuid
 import concurrent.futures
 from datetime import datetime
 from collections import defaultdict
@@ -12,6 +13,66 @@ import logging
 import asyncio
 import queue
 import traceback
+
+# Random encounter tables (docs/random_encounters.md). (min_roll, max_roll, encounter_type, composition_key).
+# composition_key -> list of (template_id, min_count, max_count).
+ZONE_ENCOUNTER_TABLES = {
+    "unflooded_sea": [
+        (1, 20, "combat", "kelp_fleas"),
+        (21, 35, "combat", "reef_crabs"),
+        (36, 45, "combat", "rift_wisps"),
+        (46, 55, "combat", "unflooded_stalker"),
+        (56, 65, "combat", "crabfolk_scouts"),
+        (66, 75, "social", None),
+        (76, 85, "environmental", None),
+        (86, 93, "exploration", None),
+        (94, 100, "combat", "ancient_sentinel"),
+    ],
+    "kelp_plains": [
+        (1, 15, "combat", "kelp_fleas_plains"),
+        (16, 30, "combat", "kelp_crawlers"),
+        (31, 45, "combat", "reef_crabs_plains"),
+        (46, 55, "combat", "kelp_shade"),
+        (56, 65, "social", None),
+        (66, 75, "environmental", None),
+        (76, 85, "exploration", None),
+        (86, 93, "combat", "kelp_plains_alpha"),
+        (94, 100, "combat", "kelp_leviathan_spawn"),
+    ],
+    "rift_forest": [
+        (1, 15, "combat", "rift_skitterlings"),
+        (16, 30, "combat", "coral_stalkers"),
+        (31, 45, "combat", "rift_wardens"),
+        (46, 55, "environmental", None),
+        (56, 65, "social", None),
+        (66, 75, "exploration", None),
+        (76, 85, "combat", "rift_forest_hunter"),
+        (86, 93, "combat", "corrupted_guardian"),
+        (94, 100, "combat", "rift_heart_sentinel"),
+    ],
+}
+ENCOUNTER_COMPOSITIONS = {
+    "kelp_fleas": [("kelp_flea", 3, 5)],
+    "reef_crabs": [("reef_crab", 2, 2), ("reef_crab_brute", 1, 1)],
+    "rift_wisps": [("rift_wisp", 1, 2)],
+    "unflooded_stalker": [("unflooded_stalker", 1, 1)],
+    "crabfolk_scouts": [("crabfolk_scout", 2, 3)],
+    "ancient_sentinel": [("ancient_sentinel_fragment", 1, 1)],
+    "kelp_fleas_plains": [("kelp_flea", 4, 6)],
+    "kelp_crawlers": [("kelp_flea", 2, 2), ("kelp_crawler", 1, 1)],
+    "reef_crabs_plains": [("reef_crab_brute", 1, 1), ("reef_crab", 1, 2)],
+    "kelp_shade": [("kelp_shade", 1, 1)],
+    "kelp_plains_alpha": [("kelp_plains_alpha", 1, 1)],
+    "kelp_leviathan_spawn": [("kelp_leviathan_spawn", 1, 1)],
+    "rift_skitterlings": [("rift_skitterling", 3, 5)],
+    "coral_stalkers": [("coral_stalker", 2, 2)],
+    "rift_wardens": [("rift_warden", 1, 1), ("rift_warden_mender", 1, 1)],
+    "rift_forest_hunter": [("rift_forest_hunter", 1, 1)],
+    "corrupted_guardian": [("corrupted_guardian", 1, 1)],
+    "rift_heart_sentinel": [("rift_heart_sentinel", 1, 1)],
+}
+ENCOUNTER_COOLDOWN_SECONDS = 120
+ENCOUNTER_ROLL_CHANCE = 0.35
 
 # Import Player from models package
 try:
@@ -33,20 +94,24 @@ except ImportError:
 # Firebase integration (required for auth)
 FIREBASE_IMPORT_ERROR = None
 try:
-    # Try new package structure first
+    # Try package structure (firebase.data_layer, firebase.auth)
     from firebase.data_layer import FirebaseDataLayer
     from firebase.auth import FirebaseAuth
     USE_FIREBASE = True
-except ImportError:
-    # Fallback to root imports for backward compatibility
+except ImportError as e1:
+    FIREBASE_IMPORT_ERROR = e1
+    # Fallback to flat modules only if they exist (e.g. legacy layout)
     try:
         from firebase_data_layer import FirebaseDataLayer
         from firebase_auth import FirebaseAuth
         USE_FIREBASE = True
-    except Exception as e:
+    except ImportError:
         USE_FIREBASE = False
-        FIREBASE_IMPORT_ERROR = e
-        print(f"Warning: Firebase modules not importable: {e}")
+        print("Warning: Firebase modules not importable.")
+        print("  Fix: from project root, activate venv then install deps:")
+        print("  source venv/bin/activate  # or: venv\\Scripts\\activate on Windows")
+        print("  pip install -r requirements.txt")
+        print("  python3 mud_server.py")
 
 # Command handlers
 try:
@@ -118,7 +183,11 @@ class Room:
         self.players = set()
         self.flags = []
         self.combat_tags = []  # open, cramped, slick, obscured, elevated
-        
+        # Present encounters (runtime_state): spawn_groups from room JSON (spawn_id, template_id, max_alive, cooldown_seconds)
+        self.spawn_groups = []
+        # Zone for random encounter table (docs/random_encounters.md): unflooded_sea, kelp_plains, rift_forest
+        self.zone = None
+
     def to_dict(self):
         return {
             "room_id": self.room_id,
@@ -128,7 +197,9 @@ class Room:
             "items": self.items,
             "npcs": self.npcs,
             "flags": self.flags,
-            "combat_tags": self.combat_tags
+            "combat_tags": self.combat_tags,
+            "spawn_groups": getattr(self, "spawn_groups", []),
+            "zone": getattr(self, "zone", None),
         }
     
     def from_dict(self, data):
@@ -829,6 +900,8 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             room.npcs = room_data.get("npcs", [])
                             room.flags = room_data.get("flags", [])
                             room.combat_tags = room_data.get("combat_tags", [])
+                            room.spawn_groups = room_data.get("spawn_groups", [])
+                            room.zone = room_data.get("zone")
                             self.rooms[room.room_id] = room
                         print(f"Loaded {len(self.rooms)} rooms from Firebase")
                         return
@@ -857,6 +930,8 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 room.npcs = room_data.get("npcs", [])
                                 room.flags = room_data.get("flags", [])
                                 room.combat_tags = room_data.get("combat_tags", [])
+                                room.spawn_groups = room_data.get("spawn_groups", [])
+                                room.zone = room_data.get("zone")
                                 self.rooms[room.room_id] = room
                                 count += 1
                         except Exception as e:
@@ -870,7 +945,79 @@ that scales by tier, and offers attribute bonuses and starting skills.
             print("No rooms found, using default rooms")
         except Exception as e:
             print(f"Error loading rooms from JSON: {e}")
-            
+
+    def _load_creatures_from_contributions(self):
+        """Load creature templates from contributions/creatures/ into self.npcs.
+        Supports: (1) New schema (docs/creature_templates.md): template_id, stats, behaviors, loot, maneuvers.
+        (2) Legacy schema: npc_id, health, max_health, skills, combat_role, etc.
+        """
+        creatures_dir = "contributions/creatures"
+        if not os.path.exists(creatures_dir):
+            return
+        for filename in os.listdir(creatures_dir):
+            if not filename.endswith('.json') or filename == 'README.md':
+                continue
+            filepath = os.path.join(creatures_dir, filename)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                # New schema: template_id + stats (docs/creature_templates.md)
+                if data.get("template_id") and data.get("stats"):
+                    npc = self._npc_from_creature_template(data)
+                else:
+                    # Legacy: npc_id, health, max_health, etc.
+                    npc = NPC(data["npc_id"], data["name"], data.get("description", data["name"] + "."))
+                    npc.from_dict(data)
+                    if hasattr(npc, 'level') and npc.level:
+                        npc.tier = npc.get_tier()
+                    if not hasattr(npc, 'attributes') or not npc.attributes:
+                        npc.attributes = {"physical": 10, "mental": 10, "spiritual": 10, "social": 10}
+                    if not hasattr(npc, 'skills') or not npc.skills:
+                        npc.skills = {}
+                    if not hasattr(npc, 'loot_table'):
+                        npc.loot_table = []
+                    if not hasattr(npc, 'exp_value'):
+                        npc.exp_value = 0
+                self.npcs[npc.npc_id] = npc
+            except Exception as e:
+                print(f"Error loading creature file {filename}: {e}")
+
+    def _npc_from_creature_template(self, data):
+        """Build an NPC from a creature template (new schema: template_id, stats, behaviors, loot, maneuvers)."""
+        tid = data["template_id"]
+        name = data.get("name", tid.replace("_", " ").title())
+        desc = data.get("description") or (name + ".")
+        npc = NPC(tid, name, desc)
+        npc.npc_id = tid  # ensure lookup key is template_id
+        stats = data.get("stats", {})
+        attack = stats.get("attack", {})
+        npc.max_health = stats.get("hp_max", 10)
+        npc.health = npc.max_health
+        npc.speed_cost = attack.get("speed_cost", 1.0)
+        role = (data.get("role") or "minion").lower()
+        npc.combat_role = role.capitalize() if role else "Minion"
+        npc.tier = (data.get("tier") or "low").capitalize()
+        lr = data.get("level_range")
+        npc.level = lr[0] if lr and len(lr) > 0 else 1
+        loot = data.get("loot", {})
+        npc.exp_value = loot.get("xp_value", 0)
+        lt_id = loot.get("loot_table_id")
+        npc.loot_table = [{"loot_table_id": lt_id}] if lt_id else []
+        npc.known_maneuvers = list(data.get("maneuvers", []))
+        npc.active_maneuvers = []
+        skills = data.get("skills", {})
+        npc.skills = {k.lower(): v for k, v in skills.items()}
+        npc.attributes = {"physical": 10, "mental": 10, "spiritual": 10, "social": 10}
+        npc.is_hostile = True
+        npc.equipped = {}
+        npc.outlooks = {}
+        npc.faction_outlooks = {}
+        npc.dialogue = []
+        npc.inventory = []
+        behaviors = data.get("behaviors", {})
+        npc.pursuit_mode = behaviors.get("pursue", "short")  # for runtime create_entity_instance
+        return npc
+
     def load_npcs_from_json(self):
         """Load NPCs from Firebase, contributions, or JSON files."""
         try:
@@ -886,6 +1033,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 npc.tier = npc.get_tier()
                             self.npcs[npc.npc_id] = npc
                         print(f"Loaded {len(self.npcs)} NPCs from Firebase")
+                        self._load_creatures_from_contributions()
                         return
                 except Exception as e:
                     print(f"Error loading NPCs from Firebase: {e}, falling back to files")
@@ -959,9 +1107,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 count += 1
                         except Exception as e:
                             print(f"Error loading NPC file {filename}: {e}")
-                
-                if count > 0:
-                    print(f"Loaded {count} NPCs from contributions/npcs/")
+
+                self._load_creatures_from_contributions()
+                if count > 0 or len(self.npcs) > 0:
+                    print(f"Loaded {len(self.npcs)} NPCs/creatures from contributions/npcs/ and contributions/creatures/")
                     return
             
             # No NPCs found from Firebase or contributions
@@ -1421,7 +1570,100 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 print(f"Error saving world time to file {path}: {e}")
         except Exception as e:
             print(f"Error saving world time: {e}")
-    
+
+    def _resolve_room_spawns(self, room_id: str) -> None:
+        """B1: On room entry, check spawn_groups and spawn creature instances if eligible (present encounters)."""
+        if not self.runtime_state:
+            return
+        room = self.get_room(room_id)
+        if not room:
+            return
+        spawn_groups = getattr(room, "spawn_groups", []) or []
+        for sg in spawn_groups:
+            spawn_id = sg.get("spawn_id") or sg.get("template_id")
+            template_id = sg.get("template_id", spawn_id)
+            if not spawn_id or not template_id:
+                continue
+            max_alive = sg.get("max_alive", 1)
+            cooldown_seconds = sg.get("cooldown_seconds", 120.0)
+            consumed = self.runtime_state.try_consume_spawn_eligibility(
+                room_id, spawn_id, max_alive=max_alive, cooldown_seconds=cooldown_seconds
+            )
+            if not consumed:
+                continue
+            template = self.npcs.get(template_id)
+            if not template:
+                continue
+            hp_max = getattr(template, "max_health", getattr(template, "health", 10))
+            role_raw = getattr(template, "combat_role", None) or getattr(template, "role", "Minion")
+            role_lower = role_raw.lower() if isinstance(role_raw, str) else "minion"
+            instance_id = self.runtime_state.create_entity_instance(
+                template_id,
+                "creature",
+                tier=getattr(template, "tier", "Low"),
+                role=role_lower,
+                hp_current=hp_max,
+                hp_max=hp_max,
+                speed_cost=getattr(template, "speed_cost", 1.0),
+                spawn_group_id=spawn_id,
+                pursuit_mode=getattr(template, "pursuit_mode", None),
+            )
+            self.runtime_state.place_entity(instance_id, room_id)
+
+    def _roll_random_encounter(self, room_id: str) -> None:
+        """Roll zone random encounter table (docs/random_encounters.md); spawn combat group with shared encounter_id."""
+        if not self.runtime_state:
+            return
+        room = self.get_room(room_id)
+        if not room:
+            return
+        zone = getattr(room, "zone", None)
+        if not zone or zone not in ZONE_ENCOUNTER_TABLES:
+            return
+        state = self.runtime_state.get_or_create_room_state(room_id)
+        now = time.time()
+        if random.random() > ENCOUNTER_ROLL_CHANCE:
+            return
+        last_roll = state.get("last_encounter_roll_at", 0)
+        if now - last_roll < ENCOUNTER_COOLDOWN_SECONDS:
+            return
+        roll = random.randint(1, 100)
+        table = ZONE_ENCOUNTER_TABLES[zone]
+        for min_r, max_r, etype, comp_key in table:
+            if min_r <= roll <= max_r:
+                break
+        else:
+            return
+        if etype != "combat" or not comp_key:
+            self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
+            return
+        composition = ENCOUNTER_COMPOSITIONS.get(comp_key)
+        if not composition:
+            return
+        encounter_id = str(uuid.uuid4())
+        for template_id, cmin, cmax in composition:
+            count = random.randint(cmin, cmax)
+            template = self.npcs.get(template_id)
+            if not template:
+                continue
+            hp_max = getattr(template, "max_health", getattr(template, "health", 10))
+            role_raw = getattr(template, "combat_role", None) or getattr(template, "role", "Minion")
+            role_lower = role_raw.lower() if isinstance(role_raw, str) else "minion"
+            for _ in range(count):
+                instance_id = self.runtime_state.create_entity_instance(
+                    template_id,
+                    "creature",
+                    tier=getattr(template, "tier", "Low"),
+                    role=role_lower,
+                    hp_current=hp_max,
+                    hp_max=hp_max,
+                    speed_cost=getattr(template, "speed_cost", 1.0),
+                    encounter_id=encounter_id,
+                    pursuit_mode=getattr(template, "pursuit_mode", None),
+                )
+                self.runtime_state.place_entity(instance_id, room_id)
+        self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
+
     def load_npc_schedules(self):
         """Load NPC schedules from Firebase"""
         try:
@@ -2196,7 +2438,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if self.runtime_state:
             self.runtime_state.get_or_create_room_state(new_room_id)
             self.runtime_state.update_room_last_active(new_room_id)
-        
+            self._resolve_room_spawns(new_room_id)  # Present encounters: spawn if eligible
+            self._roll_random_encounter(new_room_id)  # Zone random encounter table (docs/random_encounters.md)
+
         # Exploration EXP reward (first time visiting a room)
         if new_room_id not in self.explored_rooms[player.name]:
             self.explored_rooms[player.name].add(new_room_id)
@@ -4601,15 +4845,18 @@ First, choose your race (affects attributes and starting skills):
             return
         room_id = player.room_id
         hp_max = getattr(template, "max_health", getattr(template, "health", 10))
+        role_raw = getattr(template, "combat_role", None) or getattr(template, "role", "Minion")
+        role_lower = role_raw.lower() if isinstance(role_raw, str) else "minion"
         instance_id = self.runtime_state.create_entity_instance(
             spawn_id,
             "creature",
             tier=getattr(template, "tier", "Low"),
-            role=getattr(template, "role", "minion"),
+            role=role_lower,
             hp_current=hp_max,
             hp_max=hp_max,
             speed_cost=getattr(template, "speed_cost", 1.0),
             spawn_group_id=spawn_id,
+            pursuit_mode=getattr(template, "pursuit_mode", None),
         )
         self.runtime_state.place_entity(instance_id, room_id)
         self.send_to_player(player, f"Spawned instance {instance_id} (template {spawn_id}) in {room_id}. Note: in-room NPC list still uses templates; instance is in runtime DB.")
@@ -5216,7 +5463,9 @@ First, choose your race (affects attributes and starting skills):
             address = websocket.remote_address if hasattr(websocket, 'remote_address') else ('unknown', 0)
         except Exception:
             address = ('unknown', 0)
-        
+
+        print(f"WebSocket connected from {address} (path={path or '/'})")
+
         # Check connection limit
         try:
             with self.connection_lock:
@@ -5257,6 +5506,7 @@ First, choose your race (affects attributes and starting skills):
             try:
                 auth_message = await asyncio.wait_for(websocket.recv(), timeout=10.0)
             except asyncio.TimeoutError:
+                print(f"WebSocket auth timeout from {address}")
                 await websocket.close(code=1008, reason="Auth timeout")
                 with self.connection_lock:
                     self.active_connections = max(0, self.active_connections - 1)
@@ -5783,7 +6033,9 @@ First, choose your race (affects attributes and starting skills):
 
 if __name__ == "__main__":
     if not WEBSOCKET_AVAILABLE:
-        print("Error: websockets library is required. Install it with: pip install websockets")
+        print("Error: websockets library is required.")
+        print("  Fix: activate your venv, then: pip install -r requirements.txt")
+        print("  Or: pip install websockets")
         exit(1)
     
     try:

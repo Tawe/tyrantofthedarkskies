@@ -1,0 +1,37 @@
+{
+  "template_id": "rift_warden_mender",
+  "name": "Rift Warden Mender",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [3, 5],
+  "role": "healer",
+  "stats": {
+    "hp_max": 24,
+    "attack": {
+      "speed_cost": 1.1,
+      "accuracy": 11,
+      "damage_min": 2,
+      "damage_max": 4,
+      "damage_type": "force",
+      "crit_chance": 0.05
+    }
+  },
+  "skills": {
+    "Dodging": 10,
+    "Fighting": 10,
+    "Healing": 14
+  },
+  "behaviors": {
+    "preferred_range_band": "near",
+    "pursue": "none",
+    "leash_radius": 2,
+    "leash_time": 20,
+    "threat_profile": "healer",
+    "morale": { "flee_at_hp_pct": 0.35 }
+  },
+  "loot": {
+    "loot_table_id": "loot_rift_warden_mender",
+    "xp_value": 38
+  },
+  "maneuvers": ["mend_flesh", "warding_glow"]
+}

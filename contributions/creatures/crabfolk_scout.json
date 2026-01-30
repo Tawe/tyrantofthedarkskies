@@ -1,0 +1,37 @@
+{
+  "template_id": "crabfolk_scout",
+  "name": "Crabfolk Scout",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [1, 4],
+  "role": "minion",
+  "stats": {
+    "hp_max": 10,
+    "attack": {
+      "speed_cost": 1.0,
+      "accuracy": 10,
+      "damage_min": 2,
+      "damage_max": 4,
+      "damage_type": "piercing",
+      "crit_chance": 0.05
+    }
+  },
+  "skills": {
+    "Dodging": 9,
+    "Fighting": 10,
+    "Tracking": 10
+  },
+  "behaviors": {
+    "preferred_range_band": "near",
+    "pursue": "short",
+    "leash_radius": 1,
+    "leash_time": 16,
+    "threat_profile": "default",
+    "morale": { "flee_at_hp_pct": 0.3 }
+  },
+  "loot": {
+    "loot_table_id": "loot_crabfolk_scout",
+    "xp_value": 16
+  },
+  "maneuvers": ["net_cast", "withdraw"]
+}

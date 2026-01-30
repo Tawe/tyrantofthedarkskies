@@ -1,0 +1,37 @@
+{
+  "template_id": "coral_stalker",
+  "name": "Coral Stalker",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [2, 5],
+  "role": "artillery",
+  "stats": {
+    "hp_max": 20,
+    "attack": {
+      "speed_cost": 0.95,
+      "accuracy": 13,
+      "damage_min": 2,
+      "damage_max": 6,
+      "damage_type": "piercing",
+      "crit_chance": 0.08
+    }
+  },
+  "skills": {
+    "Dodging": 11,
+    "Fighting": 8,
+    "Sneaking": 12
+  },
+  "behaviors": {
+    "preferred_range_band": "far",
+    "pursue": "none",
+    "leash_radius": 1,
+    "leash_time": 12,
+    "threat_profile": "sniper",
+    "morale": { "flee_at_hp_pct": 0.25 }
+  },
+  "loot": {
+    "loot_table_id": "loot_coral_stalker",
+    "xp_value": 26
+  },
+  "maneuvers": ["spine_shot", "bleeding_strike"]
+}

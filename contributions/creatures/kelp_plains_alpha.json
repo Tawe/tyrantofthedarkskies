@@ -1,0 +1,36 @@
+{
+  "template_id": "kelp_plains_alpha",
+  "name": "Kelp Plains Alpha",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [4, 5],
+  "role": "brute",
+  "stats": {
+    "hp_max": 44,
+    "attack": {
+      "speed_cost": 1.2,
+      "accuracy": 13,
+      "damage_min": 5,
+      "damage_max": 9,
+      "damage_type": "slashing",
+      "crit_chance": 0.07
+    }
+  },
+  "skills": {
+    "Dodging": 9,
+    "Fighting": 15
+  },
+  "behaviors": {
+    "preferred_range_band": "engaged",
+    "pursue": "short",
+    "leash_radius": 2,
+    "leash_time": 22,
+    "threat_profile": "default",
+    "morale": { "flee_at_hp_pct": 0.1 }
+  },
+  "loot": {
+    "loot_table_id": "loot_kelp_plains_alpha",
+    "xp_value": 46
+  },
+  "maneuvers": ["cleaving_rush", "howl"]
+}

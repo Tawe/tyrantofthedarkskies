@@ -1,0 +1,37 @@
+{
+  "template_id": "rift_forest_hunter",
+  "name": "Rift Forest Hunter",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [3, 5],
+  "role": "controller",
+  "stats": {
+    "hp_max": 30,
+    "attack": {
+      "speed_cost": 1.0,
+      "accuracy": 13,
+      "damage_min": 3,
+      "damage_max": 6,
+      "damage_type": "poison",
+      "crit_chance": 0.06
+    }
+  },
+  "skills": {
+    "Dodging": 12,
+    "Fighting": 12,
+    "Sneaking": 12
+  },
+  "behaviors": {
+    "preferred_range_band": "near",
+    "pursue": "short",
+    "leash_radius": 2,
+    "leash_time": 22,
+    "threat_profile": "controller",
+    "morale": { "flee_at_hp_pct": 0.2 }
+  },
+  "loot": {
+    "loot_table_id": "loot_rift_forest_hunter",
+    "xp_value": 42
+  },
+  "maneuvers": ["hooking_vines", "reposition"]
+}
