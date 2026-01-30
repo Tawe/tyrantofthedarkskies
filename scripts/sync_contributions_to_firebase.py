@@ -61,6 +61,12 @@ CONTRIBUTION_MAPPING = {
         'id_field': 'npc_id',
         'save_method': 'save_npc'
     },
+    'contributions/creatures': {
+        'type': 'world',
+        'data_type': 'npcs',
+        'id_field': 'template_id',
+        'save_method': 'save_npc'
+    },
     'contributions/items/armor': {
         'type': 'world',
         'data_type': 'items',
@@ -187,6 +193,11 @@ def sync_file_to_firebase(filepath, firebase):
             return False
         
         item_id = data[id_field]
+
+        # Creature templates use template_id; game loads NPCs by npc_id — ensure npc_id is set
+        if id_field == 'template_id':
+            data = dict(data)
+            data['npc_id'] = item_id
         
         # Save to Firebase
         save_method = getattr(firebase, mapping['save_method'])
