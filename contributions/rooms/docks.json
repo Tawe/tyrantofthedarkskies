@@ -1,7 +1,7 @@
 {
   "room_id": "docks",
   "name": "The Docks",
-  "description": "Constantly active with ships arriving and departing. The docks are the lifeblood of New Cove, handling travel, trade, and sea-based contracts. The creaking of ships, calls of sailors, and the endless motion of the sea create a vibrant atmosphere. This is where you first arrived on the Refound Continent. Near a mooring post, a rain-dark barrel of driftwood sticks sits out for anyone desperate enough to arm themselves.",
+  "description": "Constantly active with ships arriving and departing, the docks are the lifeblood of New Cove. Ropes creak, hulls groan, and sailors shout over the endless motion of the sea. This is where you first arrived on the Refound Continent.\n\nNear a mooring post sits a rain-dark barrel stuffed with driftwood sticks. A few look loose, as if they could be pulled free or knocked loose with little effort.",
   "exits": {
     "west": "black_anchor_common",
     "northwest": "governors_house",
