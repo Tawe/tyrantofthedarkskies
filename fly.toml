@@ -20,9 +20,9 @@ primary_region = 'iad'
   min_machines_running = 1
   processes = ['app']
 
-# Keep WebSocket connections alive (proxy default ~60s can drop idle connections)
+# Keep WebSocket connections alive (Fly max is 900s; default ~60s would drop idle connections)
 [http_service.http_options]
-  idle_timeout = 3600
+  idle_timeout = 900
 
 # Health check: app responds 200 to GET /health (WebSocket server process_request)
 [[http_service.checks]]
