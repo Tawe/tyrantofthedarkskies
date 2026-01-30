@@ -5636,12 +5636,22 @@ First, choose your race (affects attributes and starting skills):
             # (We observed TCP accept works but websocket opening handshake times out even locally.)
             from websockets.legacy.server import serve
 
-            # Fly.io proxy health checks: respond 200 to GET / or GET /health so proxy marks instance healthy.
-            # Without this, Fly sends GET / to internal_port and expects 2xx; WebSocket-only response causes SendRequest error.
+            # Fly.io proxy health checks: respond 200 to GET /health so proxy marks instance healthy.
+            # Do NOT return 200 for WebSocket upgrade requests (GET / with Upgrade: websocket) — let those through.
+            # Headers uses get_all() (returns [] if missing); .get() may not exist.
             async def process_request(path, request_headers):
-                path_stripped = path.split("?")[0].rstrip("/") or "/"
-                if path_stripped in ("/", "/health"):
-                    return (200, [], b"")
+                path_stripped = (path or "").split("?")[0].rstrip("/") or "/"
+                if path_stripped not in ("/", "/health"):
+                    return None
+                # If this is a WebSocket upgrade, let the handshake proceed (return None)
+                try:
+                    upgrade_list = getattr(request_headers, "get_all", lambda k: [])("Upgrade") or []
+                    upgrade = (upgrade_list[0] if upgrade_list else "").strip().lower()
+                except (IndexError, KeyError, TypeError, AttributeError):
+                    upgrade = ""
+                if upgrade == "websocket":
+                    return None
+                return (200, [], b"")
 
             async def handler(ws, path):
                 async def handle_connection():

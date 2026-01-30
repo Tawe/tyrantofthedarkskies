@@ -20,13 +20,17 @@ primary_region = 'iad'
   min_machines_running = 1
   processes = ['app']
 
-# Health check: app responds 200 to GET / and GET /health (WebSocket server process_request)
+# Keep WebSocket connections alive (proxy default ~60s can drop idle connections)
+[http_service.http_options]
+  idle_timeout = 3600
+
+# Health check: app responds 200 to GET /health (WebSocket server process_request)
 [[http_service.checks]]
-  grace_period = "10s"
+  grace_period = "30s"
   interval = "30s"
   method = "GET"
   path = "/health"
-  timeout = "5s"
+  timeout = "10s"
 
 [[vm]]
   memory = '1gb'
