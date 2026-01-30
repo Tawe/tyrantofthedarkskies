@@ -90,6 +90,12 @@ CONTRIBUTION_MAPPING = {
         'data_type': 'shop_items',
         'id_field': 'item_id',
         'save_method': 'save_shop_item'
+    },
+    'contributions/encounters': {
+        'type': 'config',
+        'data_type': 'encounters',
+        'id_field': None,
+        'save_method': None
     }
 }
 
@@ -180,6 +186,32 @@ def sync_file_to_firebase(filepath, firebase):
     if not mapping:
         print(f"  ⚠ Unknown contribution type for: {filepath}")
         return False
+    
+    # Encounters: compositions.json → config encounter_compositions; zone files → config encounter_zone_<zone_id>
+    if mapping['type'] == 'config' and mapping['data_type'] == 'encounters':
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            filename = os.path.basename(filepath)
+            if filename == 'compositions.json':
+                firebase.save_config('encounter_compositions', data)
+                print(f"  ✅ Synced encounters: compositions")
+            elif 'zone_id' in data:
+                config_key = 'encounter_zone_' + data['zone_id']
+                firebase.save_config(config_key, data)
+                print(f"  ✅ Synced encounters: {data['zone_id']}")
+            else:
+                print(f"  ✗ Missing zone_id in {filepath}")
+                return False
+            return True
+        except json.JSONDecodeError as e:
+            print(f"  ✗ Invalid JSON in {filepath}: {e}")
+            return False
+        except Exception as e:
+            print(f"  ✗ Error syncing {filepath}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     try:
         # Load JSON file

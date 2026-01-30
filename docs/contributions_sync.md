@@ -24,6 +24,7 @@ The sync script automatically handles these contribution types:
 - **NPCs** (`contributions/npcs/`) → `world/npcs`
 - **Items** (`contributions/items/*/`) → `world/items`
 - **Shop Items** (`contributions/shop_items/`) → `world/shop_items`
+- **Encounters** (`contributions/encounters/`) → `config` (zone tables and compositions; see `docs/random_encounters.md`)
 
 ## Setup
 
