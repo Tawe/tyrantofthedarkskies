@@ -2164,6 +2164,12 @@ that scales by tier, and offers attribute bonuses and starting skills.
             return
             
         output = f"\n{self.format_header(room.name)}\n{room.description}\n"
+        # Append in-world hint when spawned creatures (e.g. random encounter) are present
+        if self.runtime_state:
+            for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                if inst.get("entity_type") in ("creature", "npc"):
+                    output += "\n\nCreatures stir here.\n"
+                    break
         
         if room.exits:
             exits = []

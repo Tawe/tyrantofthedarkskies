@@ -54,6 +54,12 @@ def look_command(game, player, args):
         return
         
     output = f"\n{game.format_header(room.name)}\n{room.description}\n"
+    # Append in-world hint when spawned creatures (e.g. random encounter) are present
+    if getattr(game, 'runtime_state', None):
+        for inst in game.runtime_state.get_entities_in_room(room.room_id):
+            if inst.get("entity_type") in ("creature", "npc"):
+                output += "\n\nCreatures stir here.\n"
+                break
     
     if room.exits:
         exits = []
