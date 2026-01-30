@@ -20,6 +20,14 @@ primary_region = 'iad'
   min_machines_running = 1
   processes = ['app']
 
+# Health check: app responds 200 to GET / and GET /health (WebSocket server process_request)
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/health"
+  timeout = "5s"
+
 [[vm]]
   memory = '1gb'
   cpus = 1

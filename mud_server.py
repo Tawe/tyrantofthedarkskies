@@ -5636,6 +5636,13 @@ First, choose your race (affects attributes and starting skills):
             # (We observed TCP accept works but websocket opening handshake times out even locally.)
             from websockets.legacy.server import serve
 
+            # Fly.io proxy health checks: respond 200 to GET / or GET /health so proxy marks instance healthy.
+            # Without this, Fly sends GET / to internal_port and expects 2xx; WebSocket-only response causes SendRequest error.
+            async def process_request(path, request_headers):
+                path_stripped = path.split("?")[0].rstrip("/") or "/"
+                if path_stripped in ("/", "/health"):
+                    return (200, [], b"")
+
             async def handler(ws, path):
                 async def handle_connection():
                     try:
@@ -5670,10 +5677,10 @@ First, choose your race (affects attributes and starting skills):
                 handler,
                 self.bind_address,
                 self.websocket_port,
+                process_request=process_request,
                 ping_interval=20,
                 ping_timeout=20,
                 compression=None,
-                # Add connection timeout to prevent hanging connections
                 close_timeout=10,
             ) as server:
                 print(f"WebSocket server started and listening on {self.bind_address}:{self.websocket_port}")
