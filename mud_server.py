@@ -864,6 +864,8 @@ that scales by tier, and offers attribute bonuses and starting skills.
         self.load_items_from_json()
         if self.encounter_service:
             self.encounter_service.load()
+        else:
+            print("[encounter] EncounterService not present — random encounters disabled.", flush=True)
         if self.weather_service:
             self.weather_service.load()
         
@@ -2427,7 +2429,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
             self.runtime_state.update_room_last_active(new_room_id)
             self._resolve_room_spawns(new_room_id)  # Present encounters: spawn if eligible
         if self.encounter_service:
-            self.encounter_service.roll_random_encounter(new_room_id, self.get_room)
+            self.encounter_service.roll_random_encounter(new_room_id, self.get_room, self.broadcast_to_room)
         if self.weather_service:
             self.weather_service.maybe_update_region_weather(
                 getattr(new_room, "region_id", None),

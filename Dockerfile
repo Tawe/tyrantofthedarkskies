@@ -23,10 +23,11 @@ RUN mkdir -p logs
 # Expose WebSocket port
 EXPOSE 5557
 
-# Set environment variables
+# Set environment variables (fly.toml [env] overrides at runtime)
 ENV MUD_BIND_ADDRESS=0.0.0.0
 ENV MUD_WEBSOCKET_PORT=5557
 ENV PYTHONUNBUFFERED=1
+ENV MUD_DEBUG_ENCOUNTERS=1
 
 # Run the server
 CMD ["python3", "mud_server.py"]

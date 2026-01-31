@@ -309,6 +309,22 @@ def move_command(game, player, direction):
     new_room.players.add(player.name)
     player.room_id = new_room_id
     
+    # Runtime state and zone/weather hooks (same as mud_server move_command)
+    if getattr(game, "runtime_state", None):
+        game.runtime_state.get_or_create_room_state(new_room_id)
+        game.runtime_state.update_room_last_active(new_room_id)
+        if hasattr(game, "_resolve_room_spawns"):
+            game._resolve_room_spawns(new_room_id)
+    if getattr(game, "encounter_service", None):
+        game.encounter_service.roll_random_encounter(new_room_id, game.get_room, game.broadcast_to_room)
+    if getattr(game, "weather_service", None):
+        game.weather_service.maybe_update_region_weather(
+            getattr(new_room, "region_id", None),
+            game.get_room,
+            game.players,
+            game.send_to_player,
+        )
+    
     # Exploration EXP reward (first time visiting a room)
     if new_room_id not in game.explored_rooms[player.name]:
         game.explored_rooms[player.name].add(new_room_id)

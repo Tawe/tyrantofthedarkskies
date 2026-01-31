@@ -1,6 +1,7 @@
 """Zone random encounter system (docs/random_encounters.md)."""
 
 import os
+import sys
 import json
 import random
 import time
@@ -8,7 +9,18 @@ import uuid
 
 ENCOUNTER_COOLDOWN_SECONDS = 120
 ENCOUNTER_ROLL_CHANCE = 0.35
-DEBUG_RANDOM_ENCOUNTERS = os.getenv("MUD_DEBUG_ENCOUNTERS", "").lower() in ("1", "true", "yes")
+
+# Flavor messages when a social (non-combat) encounter is rolled; one is chosen at random
+SOCIAL_ENCOUNTER_MESSAGES = [
+    "You notice signs of other travelers nearby.",
+    "The wind carries distant voices; others have passed through here recently.",
+    "Something about this place feels lived-in—perhaps others rest here often.",
+]
+
+
+def _debug_encounters():
+    """Read at runtime so Fly.io / Docker env is always visible."""
+    return os.getenv("MUD_DEBUG_ENCOUNTERS", "").strip().lower() in ("1", "true", "yes")
 
 
 class EncounterService:
@@ -22,8 +34,12 @@ class EncounterService:
 
     def load(self):
         """Load zone encounter tables and compositions from contributions/encounters/."""
-        encounters_dir = "contributions/encounters"
+        # Resolve path relative to project root (parent of systems/) so it works from any cwd (e.g. Fly.io)
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        encounters_dir = os.path.join(_root, "contributions", "encounters")
+        print(f"[encounter] load() called; dir={encounters_dir!r} exists={os.path.exists(encounters_dir)}", flush=True)
         if not os.path.exists(encounters_dir):
+            print("[encounter] No contributions/encounters dir — skipping load.", flush=True)
             return
         comp_path = os.path.join(encounters_dir, "compositions.json")
         if os.path.exists(comp_path):
@@ -55,41 +71,44 @@ class EncounterService:
             except Exception as e:
                 print(f"Error loading encounter zone {filename}: {e}")
         if self.zone_encounter_tables or self.encounter_compositions:
-            print(f"Loaded {len(self.zone_encounter_tables)} zone encounter tables, {len(self.encounter_compositions)} compositions")
-            if DEBUG_RANDOM_ENCOUNTERS:
+            print(f"[encounter] Loaded {len(self.zone_encounter_tables)} zone tables, {len(self.encounter_compositions)} compositions", flush=True)
+            if _debug_encounters():
+                print("[encounter] debug enabled (MUD_DEBUG_ENCOUNTERS=1)", flush=True)
                 for zid, table in self.zone_encounter_tables.items():
-                    print(f"  [encounter] zone={zid} rows={len(table)}")
-                print(f"  [encounter] composition keys: {list(self.encounter_compositions.keys())}")
+                    print(f"  [encounter] zone={zid} rows={len(table)}", flush=True)
+                print(f"  [encounter] composition keys: {list(self.encounter_compositions.keys())}", flush=True)
+        else:
+            print("[encounter] No zone tables or compositions loaded.", flush=True)
 
-    def roll_random_encounter(self, room_id, get_room):
-        """Roll zone random encounter table; spawn combat group with shared encounter_id if combat. get_room(room_id) returns Room or None."""
-        debug = DEBUG_RANDOM_ENCOUNTERS
+    def roll_random_encounter(self, room_id, get_room, broadcast_to_room=None):
+        """Roll zone random encounter table; spawn combat or notify for social. get_room(room_id) returns Room or None. broadcast_to_room(room_id, message) optional for social flavor."""
+        debug = _debug_encounters()
         if debug:
-            print(f"[encounter] roll_random_encounter called room_id={room_id}")
+            print(f"[encounter] roll_random_encounter called room_id={room_id}", flush=True)
         if not self.runtime_state:
             if debug:
-                print("[encounter] skip: no runtime_state")
+                print("[encounter] skip: no runtime_state", flush=True)
             return
         room = get_room(room_id) if get_room else None
         if not room:
             if debug:
-                print(f"[encounter] skip: room not found {room_id}")
+                print(f"[encounter] skip: room not found {room_id}", flush=True)
             return
         zone = getattr(room, "zone", None)
         if not zone or zone not in self.zone_encounter_tables:
             if debug:
-                print(f"[encounter] skip: room zone={zone!r}, in_tables={zone in self.zone_encounter_tables if zone else False}")
+                print(f"[encounter] skip: room zone={zone!r}, in_tables={zone in self.zone_encounter_tables if zone else False}", flush=True)
             return
         state = self.runtime_state.get_or_create_room_state(room_id)
         now = time.time()
         if random.random() > ENCOUNTER_ROLL_CHANCE:
             if debug:
-                print(f"[encounter] skip: roll chance failed (>{ENCOUNTER_ROLL_CHANCE})")
+                print(f"[encounter] skip: roll chance failed (>{ENCOUNTER_ROLL_CHANCE})", flush=True)
             return
         last_roll = state.get("last_encounter_roll_at", 0)
         if now - last_roll < ENCOUNTER_COOLDOWN_SECONDS:
             if debug:
-                print(f"[encounter] skip: cooldown ({now - last_roll:.0f}s < {ENCOUNTER_COOLDOWN_SECONDS}s)")
+                print(f"[encounter] skip: cooldown ({now - last_roll:.0f}s < {ENCOUNTER_COOLDOWN_SECONDS}s)", flush=True)
             return
         roll = random.randint(1, 100)
         table = self.zone_encounter_tables[zone]
@@ -100,20 +119,24 @@ class EncounterService:
                 break
         else:
             if debug:
-                print(f"[encounter] skip: d100={roll} matched no table row in zone={zone}")
+                print(f"[encounter] skip: d100={roll} matched no table row in zone={zone}", flush=True)
             return
         if debug:
-            print(f"[encounter] zone={zone} d100={roll} -> range {matched[0]}-{matched[1]} type={matched[2]} composition={matched[3]!r}")
+            print(f"[encounter] zone={zone} d100={roll} -> range {matched[0]}-{matched[1]} type={matched[2]} composition={matched[3]!r}", flush=True)
         if matched[2] != "combat" or not matched[3]:
             self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
             if debug:
-                print("[encounter] non-combat or no composition; cooldown set")
+                print("[encounter] non-combat or no composition; cooldown set", flush=True)
+            # Show something for social encounters so the player sees feedback
+            if matched[2] == "social" and callable(broadcast_to_room):
+                msg = random.choice(SOCIAL_ENCOUNTER_MESSAGES)
+                broadcast_to_room(room_id, msg)
             return
         comp_key = matched[3]
         composition = self.encounter_compositions.get(comp_key)
         if not composition:
             if debug:
-                print(f"[encounter] skip: composition {comp_key!r} not found (keys: {list(self.encounter_compositions.keys())[:10]}...)")
+                print(f"[encounter] skip: composition {comp_key!r} not found (keys: {list(self.encounter_compositions.keys())[:10]}...)", flush=True)
             return
         encounter_id = str(uuid.uuid4())
         spawned = []
@@ -122,7 +145,7 @@ class EncounterService:
             template = self.npcs.get(template_id)
             if not template:
                 if debug:
-                    print(f"[encounter] skip template {template_id!r}: not in npcs")
+                    print(f"[encounter] skip template {template_id!r}: not in npcs", flush=True)
                 continue
             hp_max = getattr(template, "max_health", getattr(template, "health", 10))
             role_raw = getattr(template, "combat_role", None) or getattr(template, "role", "Minion")
@@ -143,4 +166,4 @@ class EncounterService:
                 spawned.append((template_id, instance_id))
         self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
         if debug:
-            print(f"[encounter] spawned room={room_id} composition={comp_key} encounter_id={encounter_id[:8]}... count={len(spawned)} {spawned}")
+            print(f"[encounter] spawned room={room_id} composition={comp_key} encounter_id={encounter_id[:8]}... count={len(spawned)} {spawned}", flush=True)
