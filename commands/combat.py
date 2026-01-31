@@ -444,6 +444,11 @@ def disengage_command(game, player, args):
         game.send_to_player(player, "You are not in combat.")
         return
     
+    # Weather (squall): increased disengage failure chance (docs/weather_system.md)
+    failure_bonus = getattr(game, "get_weather_modifier_for_room", lambda r, e: 0)(player.room_id, "disengage_failure")
+    if failure_bonus > 0 and random.randint(1, 100) <= failure_bonus:
+        game.send_to_player(player, "The squall makes it hard to break away. You fail to disengage.")
+        return
     # Attempt disengage
     if game.combat_manager.leave_combat(player.room_id, player.name):
         game.send_to_player(player, "You disengage from combat.")

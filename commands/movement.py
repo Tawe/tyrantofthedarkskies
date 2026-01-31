@@ -60,6 +60,12 @@ def look_command(game, player, args):
             if inst.get("entity_type") in ("creature", "npc"):
                 output += "\n\nCreatures stir here.\n"
                 break
+    # Regional weather overlay (docs/weather_system.md); indoor = no overlay
+    exposure = getattr(room, "weather_exposure", None) or "outdoor"
+    if exposure != "indoor" and getattr(game, "get_weather_overlay", None):
+        overlay = game.get_weather_overlay(getattr(room, "region_id", None), exposure)
+        if overlay:
+            output += f"\n\n{overlay}\n"
     
     if room.exits:
         exits = []

@@ -12,5 +12,7 @@
     "dangerous"
   ],
   "combat_tags": [],
-  "zone": "rift_forest"
+  "zone": "rift_forest",
+  "region_id": "rift_forest",
+  "weather_exposure": "outdoor"
 }

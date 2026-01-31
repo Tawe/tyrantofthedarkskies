@@ -13,5 +13,7 @@
     "safe",
     "public"
   ],
-  "combat_tags": []
+  "combat_tags": [],
+  "region_id": "rift_forest",
+  "weather_exposure": "sheltered"
 }

@@ -11,5 +11,7 @@
     "dangerous",
     "dark"
   ],
-  "combat_tags": []
+  "combat_tags": [],
+  "region_id": "kelp_plains",
+  "weather_exposure": "outdoor"
 }

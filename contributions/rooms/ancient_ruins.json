@@ -13,5 +13,7 @@
     "dangerous",
     "dark"
   ],
-  "combat_tags": []
+  "combat_tags": [],
+  "region_id": "unflooded_sea",
+  "weather_exposure": "outdoor"
 }

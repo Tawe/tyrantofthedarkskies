@@ -1,0 +1,8 @@
+{
+  "clear": { "clear": 50, "fog": 30, "wind": 20 },
+  "fog": { "fog": 40, "clear": 40, "squall": 20 },
+  "wind": { "wind": 50, "clear": 30, "squall": 20 },
+  "squall": { "wind": 50, "clear": 50 },
+  "cold_snap": { "cold_snap": 40, "clear": 60 },
+  "salt_rain": { "salt_rain": 50, "clear": 50 }
+}

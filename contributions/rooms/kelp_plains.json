@@ -20,5 +20,7 @@
     "dangerous"
   ],
   "combat_tags": ["open", "obscured"],
-  "zone": "kelp_plains"
+  "zone": "kelp_plains",
+  "region_id": "kelp_plains",
+  "weather_exposure": "outdoor"
 }

@@ -14,5 +14,7 @@
     "safe",
     "public"
   ],
-  "combat_tags": []
+  "combat_tags": [],
+  "region_id": "new_cove_town",
+  "weather_exposure": "indoor"
 }
