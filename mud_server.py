@@ -14,11 +14,15 @@ import asyncio
 import queue
 import traceback
 
-# Random encounter config (tables/compositions loaded from contributions/encounters/)
-ENCOUNTER_COOLDOWN_SECONDS = 120
-ENCOUNTER_ROLL_CHANCE = 0.35
-# Set MUD_DEBUG_ENCOUNTERS=1 to log random encounter rolls and spawns
-DEBUG_RANDOM_ENCOUNTERS = os.getenv("MUD_DEBUG_ENCOUNTERS", "").lower() in ("1", "true", "yes")
+# Random encounter config lives in systems/encounter_system.py (ENCOUNTER_COOLDOWN_SECONDS, ENCOUNTER_ROLL_CHANCE, DEBUG_RANDOM_ENCOUNTERS)
+#
+# Modularity: Keep logic out of this file when possible.
+# - Weather: systems/weather_system.py (WeatherService)
+# - Random encounters: systems/encounter_system.py (EncounterService)
+# - Command handlers: commands/ (look_command, move_command, inventory_command, drop_command, etc.). When
+#   COMMANDS_AVAILABLE, process_command uses those. get_command stays on MudGame (handles interactables
+#   and runtime item instances). The long look_command/move_command etc. on MudGame are fallbacks when
+#   the commands package fails to import.
 
 # Import Player from models package
 try:
@@ -560,15 +564,10 @@ class MudGame:
         # Exploration tracking (for EXP rewards)
         self.explored_rooms = defaultdict(set)  # {player_name: set of room_ids}
 
-        # Zone random encounters (loaded from contributions/encounters/)
-        self.zone_encounter_tables = {}  # zone_id -> list of (min_roll, max_roll, encounter_type, composition_key)
-        self.encounter_compositions = {}  # composition_key -> list of (template_id, min_count, max_count)
-
-        # Regional weather (docs/weather_system.md): region_id -> { weather_type, intensity, started_at, next_change_at }
-        self.region_weather = {}
-        self.weather_transitions = {}  # weather_type -> { next_type: weight, ... }
-        self.weather_overlays = {}  # (weather_type, exposure) -> overlay text or (intensity -> text)
-        self.weather_change_messages = {}  # weather_type -> message when changing to this weather
+        # Zone random encounters (systems/encounter_system.py)
+        self.encounter_service = None  # set after runtime_state and npcs exist
+        # Regional weather (systems/weather_system.py)
+        self.weather_service = None  # set after firebase and world_time exist
 
         # Runtime state (docs/runtime_state.md: room_state, entity instances, positions)
         try:
@@ -629,6 +628,24 @@ class MudGame:
                 self.store_hours = None
                 self._world_time_save_stop = None
                 print("Warning: Time system not available. Time features disabled.")
+
+        # Weather and encounter systems (modular; docs/weather_system.md, docs/random_encounters.md)
+        try:
+            from systems.weather_system import WeatherService
+            self.weather_service = WeatherService(
+                firebase=self.firebase if self.use_firebase else None,
+                world_time=self.world_time,
+                use_firebase=self.use_firebase,
+            )
+        except ImportError:
+            self.weather_service = None
+            print("Warning: WeatherService not available. Weather features disabled.")
+        try:
+            from systems.encounter_system import EncounterService
+            self.encounter_service = EncounterService(runtime_state=self.runtime_state, npcs=self.npcs)
+        except ImportError:
+            self.encounter_service = None
+            print("Warning: EncounterService not available. Random encounters disabled.")
         
         # ANSI color codes for terminal highlighting
         self.colors = {
@@ -845,8 +862,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
         self.load_rooms_from_json()
         self.load_npcs_from_json()
         self.load_items_from_json()
-        self.load_encounters()
-        self.load_weather()
+        if self.encounter_service:
+            self.encounter_service.load()
+        if self.weather_service:
+            self.weather_service.load()
         
     def load_rooms_from_json(self):
         """Load rooms from Firebase, then overlay contributions/rooms/ so local edits win."""
@@ -913,201 +932,17 @@ that scales by tier, and offers attribute bonuses and starting skills.
         except Exception as e:
             print(f"Error loading rooms from JSON: {e}")
 
-    def load_encounters(self):
-        """Load zone encounter tables and compositions from contributions/encounters/ (docs/random_encounters.md)."""
-        encounters_dir = "contributions/encounters"
-        if not os.path.exists(encounters_dir):
-            return
-        # Load compositions: composition_key -> list of (template_id, min_count, max_count)
-        comp_path = os.path.join(encounters_dir, "compositions.json")
-        if os.path.exists(comp_path):
-            try:
-                with open(comp_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-                for key, entries in raw.items():
-                    self.encounter_compositions[key] = [
-                        (e["template_id"], e["min_count"], e["max_count"])
-                        for e in entries
-                    ]
-            except Exception as e:
-                print(f"Error loading encounter compositions: {e}")
-        # Load zone tables: zone_id -> list of (min_roll, max_roll, encounter_type, composition_key)
-        for filename in os.listdir(encounters_dir):
-            if filename in ("compositions.json", "README.md") or not filename.endswith(".json"):
-                continue
-            filepath = os.path.join(encounters_dir, filename)
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                zone_id = data.get("zone_id")
-                table = data.get("table", [])
-                if not zone_id:
-                    continue
-                self.zone_encounter_tables[zone_id] = [
-                    (e["min_roll"], e["max_roll"], e["encounter_type"], e.get("composition_key"))
-                    for e in table
-                ]
-            except Exception as e:
-                print(f"Error loading encounter zone {filename}: {e}")
-        if self.zone_encounter_tables or self.encounter_compositions:
-            print(f"Loaded {len(self.zone_encounter_tables)} zone encounter tables, {len(self.encounter_compositions)} compositions")
-            if DEBUG_RANDOM_ENCOUNTERS:
-                for zid, table in self.zone_encounter_tables.items():
-                    print(f"  [encounter] zone={zid} rows={len(table)}")
-                print(f"  [encounter] composition keys: {list(self.encounter_compositions.keys())}")
-
-    def load_weather(self):
-        """Load regional weather state from Firebase and transitions/overlays from contributions/weather/ (docs/weather_system.md)."""
-        # Load persisted region_weather from Firebase
-        if self.use_firebase and self.firebase:
-            try:
-                data = self.firebase.load_config("region_weather")
-                if data and isinstance(data, dict):
-                    self.region_weather = data
-                    print(f"Loaded weather for {len(self.region_weather)} regions from Firebase")
-            except Exception as e:
-                print(f"Error loading region_weather from Firebase: {e}")
-        # Load transition table and overlays from contributions/weather/
-        weather_dir = "contributions/weather"
-        if os.path.exists(weather_dir):
-            for name, attr in [("transitions.json", "weather_transitions"), ("overlays.json", "weather_overlays"), ("change_messages.json", "weather_change_messages")]:
-                path = os.path.join(weather_dir, name)
-                if os.path.exists(path):
-                    try:
-                        with open(path, "r", encoding="utf-8") as f:
-                            data = json.load(f)
-                        setattr(self, attr, data)
-                    except Exception as e:
-                        print(f"Error loading {name}: {e}")
-        # Default transitions if none loaded
-        if not self.weather_transitions:
-            self.weather_transitions = {
-                "clear": {"clear": 50, "fog": 30, "wind": 20},
-                "fog": {"fog": 40, "clear": 40, "squall": 20},
-                "wind": {"wind": 50, "clear": 30, "squall": 20},
-                "squall": {"wind": 50, "clear": 50},
-                "cold_snap": {"cold_snap": 40, "clear": 60},
-                "salt_rain": {"salt_rain": 50, "clear": 50},
-            }
-        # Default overlays (short in-world lines per weather/exposure); indoor = no overlay
-        if not self.weather_overlays:
-            self.weather_overlays = {
-                "clear": {"outdoor": "The air is still and clear.", "sheltered": "The sky is clear beyond shelter.", "coastal": "Clear skies over the water."},
-                "fog": {"outdoor": "A cold fog crawls through, muffling sound and swallowing distant shapes.", "sheltered": "Fog drifts past, dimming the world beyond.", "coastal": "Sea fog rolls in, thick and clammy."},
-                "wind": {"outdoor": "The wind blows steadily, tugging at clothes and foliage.", "sheltered": "Wind whistles past your shelter.", "coastal": "Wind whips off the water, sharp and salt-tanged."},
-                "squall": {"outdoor": "A squall drives rain and wind; visibility drops.", "sheltered": "A squall batters the world outside.", "coastal": "A squall whips the coast; spray and rain sting."},
-                "cold_snap": {"outdoor": "A cold snap bites; breath fogs and fingers numb.", "sheltered": "Cold seeps in despite shelter.", "coastal": "Bitter wind off the water cuts through."},
-                "salt_rain": {"outdoor": "Salt rain falls, stinging skin and metal.", "sheltered": "Salt rain drums beyond shelter.", "coastal": "Salt rain and spray lash the coast."},
-            }
-        if not self.weather_change_messages:
-            self.weather_change_messages = {
-                "clear": "The weather clears.",
-                "fog": "Fog rolls in, thickening the air.",
-                "wind": "The wind rises.",
-                "squall": "A squall sweeps in.",
-                "cold_snap": "A cold snap descends.",
-                "salt_rain": "Salt rain begins to fall.",
-            }
-
-    def get_region_weather(self, region_id):
-        """Return current weather state for region; init with clear if missing. Uses in-game time for next_change_at."""
-        if not region_id:
-            return None
-        now = self.world_time.get_world_seconds() if self.world_time else int(time.time())
-        if region_id not in self.region_weather:
-            self.region_weather[region_id] = {
-                "region_id": region_id,
-                "weather_type": "clear",
-                "intensity": 0,
-                "started_at": now,
-                "next_change_at": now + 900,  # 15 min in-game
-                "seed": random.randint(1, 2**31 - 1),
-            }
-            self._save_region_weather()
-        return self.region_weather[region_id]
-
-    def _save_region_weather(self):
-        """Persist region_weather to Firebase."""
-        if self.use_firebase and self.firebase:
-            try:
-                self.firebase.save_config("region_weather", self.region_weather)
-            except Exception as e:
-                print(f"Error saving region_weather to Firebase: {e}")
-
-    def _roll_next_weather(self, region_id):
-        """Roll next weather from transition table; set next_change_at. Returns (old_type, new_type)."""
-        state = self.get_region_weather(region_id)
-        old_type = state["weather_type"]
-        table = self.weather_transitions.get(old_type, {"clear": 100})
-        choices = list(table.keys())
-        weights = [table[c] for c in choices]
-        new_type = random.choices(choices, weights=weights, k=1)[0]
-        now = self.world_time.get_world_seconds() if self.world_time else int(time.time())
-        duration = random.randint(600, 1800)  # 10–30 min in-game
-        state["weather_type"] = new_type
-        state["intensity"] = min(3, state.get("intensity", 0) + (1 if new_type != "clear" else -1))
-        state["intensity"] = max(0, state["intensity"])
-        state["started_at"] = now
-        state["next_change_at"] = now + duration
-        self._save_region_weather()
-        return (old_type, new_type)
-
-    def _maybe_update_region_weather(self, region_id):
-        """If now >= next_change_at, roll new weather and notify players in region."""
-        if not region_id or not self.world_time:
-            return
-        state = self.get_region_weather(region_id)
-        now = self.world_time.get_world_seconds()
-        if now < state.get("next_change_at", 0):
-            return
-        old_type, new_type = self._roll_next_weather(region_id)
-        if old_type == new_type:
-            return
-        msg = self.weather_change_messages.get(new_type, "The weather changes.")
-        for pid, p in self.players.items():
-            r = self.get_room(p.room_id) if getattr(p, "room_id", None) else None
-            if r and getattr(r, "region_id", None) == region_id:
-                self.send_to_player(p, msg)
-
     def get_weather_overlay(self, region_id, weather_exposure):
-        """Return short overlay line for current regional weather and exposure, or None if indoor/none."""
-        if weather_exposure == "indoor" or not region_id:
+        """Delegate to WeatherService (systems/weather_system.py). Kept for command/display layer."""
+        if not self.weather_service:
             return None
-        state = self.get_region_weather(region_id)
-        wtype = state.get("weather_type", "clear")
-        exposure = weather_exposure if weather_exposure in ("sheltered", "outdoor", "coastal") else "outdoor"
-        overlays = self.weather_overlays
-        if isinstance(overlays, dict) and wtype in overlays:
-            row = overlays[wtype] if isinstance(overlays[wtype], dict) else {}
-            return row.get(exposure) or row.get("outdoor")
-        return None
+        return self.weather_service.get_weather_overlay(region_id, weather_exposure)
 
     def get_weather_modifier_for_room(self, room_id, effect_type):
-        """Return weather modifier for room (docs/weather_system.md). Indoor rooms return 0.
-        effect_type: 'ranged_accuracy_far' (fog), 'disengage_failure' (squall), 'durability_loss' (salt_rain), 'stamina_drain' (cold_snap).
-        """
-        room = self.get_room(room_id) if room_id else None
-        if not room:
+        """Delegate to WeatherService (systems/weather_system.py). Kept for command/display layer."""
+        if not self.weather_service:
             return 0
-        exposure = getattr(room, "weather_exposure", None)
-        if exposure == "indoor":
-            return 0
-        region_id = getattr(room, "region_id", None)
-        if not region_id:
-            return 0
-        state = self.get_region_weather(region_id)
-        wtype = state.get("weather_type", "clear")
-        intensity = max(0, min(3, state.get("intensity", 0)))
-        scale = (intensity + 1) / 4.0  # 0.25–1.0
-        if effect_type == "ranged_accuracy_far" and wtype == "fog":
-            return int(-15 * scale)  # −accuracy at Far range
-        if effect_type == "disengage_failure" and wtype == "squall":
-            return int(20 * scale)  # +failure chance (e.g. +20% at intensity 2)
-        if effect_type == "durability_loss" and wtype == "salt_rain":
-            return scale  # multiplier > 1 (caller applies to loss)
-        if effect_type == "stamina_drain" and wtype == "cold_snap" and exposure in ("outdoor", "coastal"):
-            return int(2 * scale)  # minor stamina cost
-        return 0
+        return self.weather_service.get_weather_modifier_for_room(room_id, effect_type, self.get_room)
 
     def _load_creatures_from_contributions(self):
         """Load creature templates from contributions/creatures/ into self.npcs.
@@ -1784,90 +1619,6 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 pursuit_mode=getattr(template, "pursuit_mode", None),
             )
             self.runtime_state.place_entity(instance_id, room_id)
-
-    def _roll_random_encounter(self, room_id: str) -> None:
-        """Roll zone random encounter table (docs/random_encounters.md); spawn combat group with shared encounter_id."""
-        debug = DEBUG_RANDOM_ENCOUNTERS
-        if debug:
-            print(f"[encounter] _roll_random_encounter called room_id={room_id}")
-        if not self.runtime_state:
-            if debug:
-                print("[encounter] skip: no runtime_state")
-            return
-        room = self.get_room(room_id)
-        if not room:
-            if debug:
-                print(f"[encounter] skip: room not found {room_id}")
-            return
-        zone = getattr(room, "zone", None)
-        if not zone or zone not in self.zone_encounter_tables:
-            if debug:
-                print(f"[encounter] skip: room zone={zone!r}, in_tables={zone in self.zone_encounter_tables if zone else False}")
-            return
-        state = self.runtime_state.get_or_create_room_state(room_id)
-        now = time.time()
-        if random.random() > ENCOUNTER_ROLL_CHANCE:
-            if debug:
-                print(f"[encounter] skip: roll chance failed (>{ENCOUNTER_ROLL_CHANCE})")
-            return
-        last_roll = state.get("last_encounter_roll_at", 0)
-        if now - last_roll < ENCOUNTER_COOLDOWN_SECONDS:
-            if debug:
-                print(f"[encounter] skip: cooldown ({now - last_roll:.0f}s < {ENCOUNTER_COOLDOWN_SECONDS}s)")
-            return
-        roll = random.randint(1, 100)
-        table = self.zone_encounter_tables[zone]
-        matched = None
-        for min_r, max_r, etype, comp_key in table:
-            if min_r <= roll <= max_r:
-                matched = (min_r, max_r, etype, comp_key)
-                break
-        else:
-            if debug:
-                print(f"[encounter] skip: d100={roll} matched no table row in zone={zone}")
-            return
-        if debug:
-            print(f"[encounter] zone={zone} d100={roll} -> range {matched[0]}-{matched[1]} type={matched[2]} composition={matched[3]!r}")
-        if matched[2] != "combat" or not matched[3]:
-            self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
-            if debug:
-                print(f"[encounter] non-combat or no composition; cooldown set")
-            return
-        comp_key = matched[3]
-        composition = self.encounter_compositions.get(comp_key)
-        if not composition:
-            if debug:
-                print(f"[encounter] skip: composition {comp_key!r} not found (keys: {list(self.encounter_compositions.keys())[:10]}...)")
-            return
-        encounter_id = str(uuid.uuid4())
-        spawned = []
-        for template_id, cmin, cmax in composition:
-            count = random.randint(cmin, cmax)
-            template = self.npcs.get(template_id)
-            if not template:
-                if debug:
-                    print(f"[encounter] skip template {template_id!r}: not in npcs")
-                continue
-            hp_max = getattr(template, "max_health", getattr(template, "health", 10))
-            role_raw = getattr(template, "combat_role", None) or getattr(template, "role", "Minion")
-            role_lower = role_raw.lower() if isinstance(role_raw, str) else "minion"
-            for _ in range(count):
-                instance_id = self.runtime_state.create_entity_instance(
-                    template_id,
-                    "creature",
-                    tier=getattr(template, "tier", "Low"),
-                    role=role_lower,
-                    hp_current=hp_max,
-                    hp_max=hp_max,
-                    speed_cost=getattr(template, "speed_cost", 1.0),
-                    encounter_id=encounter_id,
-                    pursuit_mode=getattr(template, "pursuit_mode", None),
-                )
-                self.runtime_state.place_entity(instance_id, room_id)
-                spawned.append((template_id, instance_id))
-        self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
-        if debug:
-            print(f"[encounter] spawned room={room_id} composition={comp_key} encounter_id={encounter_id[:8]}... count={len(spawned)} {spawned}")
 
     def load_npc_schedules(self):
         """Load NPC schedules from Firebase"""
@@ -2675,9 +2426,15 @@ that scales by tier, and offers attribute bonuses and starting skills.
             self.runtime_state.get_or_create_room_state(new_room_id)
             self.runtime_state.update_room_last_active(new_room_id)
             self._resolve_room_spawns(new_room_id)  # Present encounters: spawn if eligible
-            self._roll_random_encounter(new_room_id)  # Zone random encounter table (docs/random_encounters.md)
-        # Regional weather: maybe roll new weather when entering region (docs/weather_system.md)
-        self._maybe_update_region_weather(getattr(new_room, "region_id", None))
+        if self.encounter_service:
+            self.encounter_service.roll_random_encounter(new_room_id, self.get_room)
+        if self.weather_service:
+            self.weather_service.maybe_update_region_weather(
+                getattr(new_room, "region_id", None),
+                self.get_room,
+                self.players,
+                self.send_to_player,
+            )
 
         # Exploration EXP reward (first time visiting a room)
         if new_room_id not in self.explored_rooms[player.name]:
@@ -4945,7 +4702,10 @@ First, choose your race (affects attributes and starting skills):
             self.explored_rooms[player.name].add(player.room_id)
             
         self.save_player_data(player)
-        self.look_command(player, [])
+        if COMMANDS_AVAILABLE:
+            look_command(self, player, [])
+        else:
+            self.look_command(player, [])
         
         # Send a new prompt to indicate we're out of creation mode
         try:
@@ -5180,7 +4940,10 @@ First, choose your race (affects attributes and starting skills):
         self.rooms[room_id].players.add(player.name)
         
         self.send_to_player(player, f"You teleport to: {self.rooms[room_id].name}")
-        self.look_command(player, [])
+        if COMMANDS_AVAILABLE:
+            look_command(self, player, [])
+        else:
+            self.look_command(player, [])
         
     def skills_command(self, player, args):
         """Show player's skills and levels"""
