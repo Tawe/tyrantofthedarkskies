@@ -62,19 +62,21 @@ class RuntimeStateService:
         self.data_layer.save_room_state(room_id, state)
         return state
 
-    def update_room_last_active(self, room_id: str) -> None:
-        """Update last_active_at when players interact in the room (B1)."""
+    def update_room_last_active(self, room_id: str, *, state: Optional[Dict] = None) -> None:
+        """Update last_active_at when players interact in the room (B1). Pass state from get_or_create_room_state to avoid a second load."""
         if not self._enabled():
             return
-        state = self.get_or_create_room_state(room_id)
+        if state is None:
+            state = self.get_or_create_room_state(room_id)
         state["last_active_at"] = _now_ts()
         self.data_layer.save_room_state(room_id, state)
 
-    def set_room_state_fields(self, room_id: str, **fields) -> None:
-        """Update arbitrary room_state fields (e.g. last_encounter_roll_at for random encounters)."""
+    def set_room_state_fields(self, room_id: str, *, state: Optional[Dict] = None, **fields) -> None:
+        """Update arbitrary room_state fields (e.g. last_encounter_roll_at). Pass state to avoid an extra load."""
         if not self._enabled():
             return
-        state = self.get_or_create_room_state(room_id)
+        if state is None:
+            state = self.get_or_create_room_state(room_id)
         for key, value in fields.items():
             state[key] = value
         self.data_layer.save_room_state(room_id, state)

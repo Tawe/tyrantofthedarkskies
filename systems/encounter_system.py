@@ -80,8 +80,8 @@ class EncounterService:
         else:
             print("[encounter] No zone tables or compositions loaded.", flush=True)
 
-    def roll_random_encounter(self, room_id, get_room, broadcast_to_room=None):
-        """Roll zone random encounter table; spawn combat or notify for social. get_room(room_id) returns Room or None. broadcast_to_room(room_id, message) optional for social flavor."""
+    def roll_random_encounter(self, room_id, get_room, broadcast_to_room=None, room_state=None):
+        """Roll zone random encounter table; spawn combat or notify for social. get_room(room_id) returns Room or None. broadcast_to_room(room_id, message) optional for social flavor. room_state from get_or_create_room_state avoids an extra load."""
         debug = _debug_encounters()
         if debug:
             print(f"[encounter] roll_random_encounter called room_id={room_id}", flush=True)
@@ -99,7 +99,7 @@ class EncounterService:
             if debug:
                 print(f"[encounter] skip: room zone={zone!r}, in_tables={zone in self.zone_encounter_tables if zone else False}", flush=True)
             return
-        state = self.runtime_state.get_or_create_room_state(room_id)
+        state = room_state if room_state is not None else self.runtime_state.get_or_create_room_state(room_id)
         now = time.time()
         if random.random() > ENCOUNTER_ROLL_CHANCE:
             if debug:
@@ -124,7 +124,7 @@ class EncounterService:
         if debug:
             print(f"[encounter] zone={zone} d100={roll} -> range {matched[0]}-{matched[1]} type={matched[2]} composition={matched[3]!r}", flush=True)
         if matched[2] != "combat" or not matched[3]:
-            self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
+            self.runtime_state.set_room_state_fields(room_id, state=state, last_encounter_roll_at=now)
             if debug:
                 print("[encounter] non-combat or no composition; cooldown set", flush=True)
             # Show something for social encounters so the player sees feedback
@@ -164,6 +164,6 @@ class EncounterService:
                 )
                 self.runtime_state.place_entity(instance_id, room_id)
                 spawned.append((template_id, instance_id))
-        self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
+        self.runtime_state.set_room_state_fields(room_id, state=state, last_encounter_roll_at=now)
         if debug:
             print(f"[encounter] spawned room={room_id} composition={comp_key} encounter_id={encounter_id[:8]}... count={len(spawned)} {spawned}", flush=True)

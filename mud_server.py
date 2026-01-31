@@ -2423,13 +2423,14 @@ that scales by tier, and offers attribute bonuses and starting skills.
         new_room.players.add(player.name)
         player.room_id = new_room_id
 
-        # Runtime state: load/create room_state and update last_active_at (R4, B1)
+        # Runtime state: load/create room_state once and reuse to avoid extra Firebase loads (R4, B1)
+        room_state = None
         if self.runtime_state:
-            self.runtime_state.get_or_create_room_state(new_room_id)
-            self.runtime_state.update_room_last_active(new_room_id)
+            room_state = self.runtime_state.get_or_create_room_state(new_room_id)
+            self.runtime_state.update_room_last_active(new_room_id, state=room_state)
             self._resolve_room_spawns(new_room_id)  # Present encounters: spawn if eligible
         if self.encounter_service:
-            self.encounter_service.roll_random_encounter(new_room_id, self.get_room, self.broadcast_to_room)
+            self.encounter_service.roll_random_encounter(new_room_id, self.get_room, self.broadcast_to_room, room_state=room_state)
         if self.weather_service:
             self.weather_service.maybe_update_region_weather(
                 getattr(new_room, "region_id", None),
