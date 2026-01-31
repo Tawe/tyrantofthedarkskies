@@ -17,6 +17,8 @@ import traceback
 # Random encounter config (tables/compositions loaded from contributions/encounters/)
 ENCOUNTER_COOLDOWN_SECONDS = 120
 ENCOUNTER_ROLL_CHANCE = 0.35
+# Set MUD_DEBUG_ENCOUNTERS=1 to log random encounter rolls and spawns
+DEBUG_RANDOM_ENCOUNTERS = os.getenv("MUD_DEBUG_ENCOUNTERS", "").lower() in ("1", "true", "yes")
 
 # Import Player from models package
 try:
@@ -949,6 +951,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 print(f"Error loading encounter zone {filename}: {e}")
         if self.zone_encounter_tables or self.encounter_compositions:
             print(f"Loaded {len(self.zone_encounter_tables)} zone encounter tables, {len(self.encounter_compositions)} compositions")
+            if DEBUG_RANDOM_ENCOUNTERS:
+                for zid, table in self.zone_encounter_tables.items():
+                    print(f"  [encounter] zone={zid} rows={len(table)}")
+                print(f"  [encounter] composition keys: {list(self.encounter_compositions.keys())}")
 
     def load_weather(self):
         """Load regional weather state from Firebase and transitions/overlays from contributions/weather/ (docs/weather_system.md)."""
@@ -1781,39 +1787,66 @@ that scales by tier, and offers attribute bonuses and starting skills.
 
     def _roll_random_encounter(self, room_id: str) -> None:
         """Roll zone random encounter table (docs/random_encounters.md); spawn combat group with shared encounter_id."""
+        debug = DEBUG_RANDOM_ENCOUNTERS
+        if debug:
+            print(f"[encounter] _roll_random_encounter called room_id={room_id}")
         if not self.runtime_state:
+            if debug:
+                print("[encounter] skip: no runtime_state")
             return
         room = self.get_room(room_id)
         if not room:
+            if debug:
+                print(f"[encounter] skip: room not found {room_id}")
             return
         zone = getattr(room, "zone", None)
         if not zone or zone not in self.zone_encounter_tables:
+            if debug:
+                print(f"[encounter] skip: room zone={zone!r}, in_tables={zone in self.zone_encounter_tables if zone else False}")
             return
         state = self.runtime_state.get_or_create_room_state(room_id)
         now = time.time()
         if random.random() > ENCOUNTER_ROLL_CHANCE:
+            if debug:
+                print(f"[encounter] skip: roll chance failed (>{ENCOUNTER_ROLL_CHANCE})")
             return
         last_roll = state.get("last_encounter_roll_at", 0)
         if now - last_roll < ENCOUNTER_COOLDOWN_SECONDS:
+            if debug:
+                print(f"[encounter] skip: cooldown ({now - last_roll:.0f}s < {ENCOUNTER_COOLDOWN_SECONDS}s)")
             return
         roll = random.randint(1, 100)
         table = self.zone_encounter_tables[zone]
+        matched = None
         for min_r, max_r, etype, comp_key in table:
             if min_r <= roll <= max_r:
+                matched = (min_r, max_r, etype, comp_key)
                 break
         else:
+            if debug:
+                print(f"[encounter] skip: d100={roll} matched no table row in zone={zone}")
             return
-        if etype != "combat" or not comp_key:
+        if debug:
+            print(f"[encounter] zone={zone} d100={roll} -> range {matched[0]}-{matched[1]} type={matched[2]} composition={matched[3]!r}")
+        if matched[2] != "combat" or not matched[3]:
             self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
+            if debug:
+                print(f"[encounter] non-combat or no composition; cooldown set")
             return
+        comp_key = matched[3]
         composition = self.encounter_compositions.get(comp_key)
         if not composition:
+            if debug:
+                print(f"[encounter] skip: composition {comp_key!r} not found (keys: {list(self.encounter_compositions.keys())[:10]}...)")
             return
         encounter_id = str(uuid.uuid4())
+        spawned = []
         for template_id, cmin, cmax in composition:
             count = random.randint(cmin, cmax)
             template = self.npcs.get(template_id)
             if not template:
+                if debug:
+                    print(f"[encounter] skip template {template_id!r}: not in npcs")
                 continue
             hp_max = getattr(template, "max_health", getattr(template, "health", 10))
             role_raw = getattr(template, "combat_role", None) or getattr(template, "role", "Minion")
@@ -1831,7 +1864,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     pursuit_mode=getattr(template, "pursuit_mode", None),
                 )
                 self.runtime_state.place_entity(instance_id, room_id)
+                spawned.append((template_id, instance_id))
         self.runtime_state.set_room_state_fields(room_id, last_encounter_roll_at=now)
+        if debug:
+            print(f"[encounter] spawned room={room_id} composition={comp_key} encounter_id={encounter_id[:8]}... count={len(spawned)} {spawned}")
 
     def load_npc_schedules(self):
         """Load NPC schedules from Firebase"""
