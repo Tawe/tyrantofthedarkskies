@@ -109,23 +109,27 @@ def use_command(game, player, args):
     game.send_to_player(player, "You don't have that.")
 
 
+# Slots the player can equip; used to tell "equip slot item" from "equip item name"
+_EQUIP_SLOTS = {"weapon", "offhand", "head", "chest", "body", "arms", "legs", "shield", "armor"}
+
+
 def equip_command(game, player, args):
-    """Equip a weapon or armor"""
+    """Equip a weapon or armor. Usage: equip <item> or equip <slot> <item>."""
     if not args:
-        game.send_to_player(player, "Equip what? Usage: equip <slot> <item> or equip <item>")
+        game.send_to_player(player, "Equip what? Usage: equip <item> or equip <slot> <item> (e.g. equip padded armor vest, equip chest padded armor)")
         return
     
-    # Parse command: "equip weapon longsword" or "equip longsword"
+    # Parse: "equip padded armor vest" -> item only (infer slot); "equip chest padded armor" -> slot + item
     if len(args) == 1:
-        # Assume weapon slot
         item_name = args[0].lower()
-        slot = "weapon"
-    elif len(args) >= 2:
+        slot = None
+    elif args[0].lower() in _EQUIP_SLOTS:
         slot = args[0].lower()
         item_name = " ".join(args[1:]).lower()
     else:
-        game.send_to_player(player, "Equip what? Usage: equip <slot> <item> or equip <item>")
-        return
+        # First word isn't a slot (e.g. "equip padded armor vest") -> treat whole thing as item name
+        item_name = " ".join(args).lower()
+        slot = None
     
     # Find item in inventory
     item_id = None
@@ -141,15 +145,23 @@ def equip_command(game, player, args):
         game.send_to_player(player, f"You don't have '{item_name}' in your inventory.")
         return
     
-    # Check if item is appropriate for slot
+    # Infer slot from item if not specified
+    if slot is None:
+        if item.is_weapon():
+            slot = "weapon"
+        elif item.is_armor():
+            slot = item.get_armor_slot()
+        else:
+            game.send_to_player(player, "You can't equip that.")
+            return
+    
+    # Weapon
     if slot == "weapon":
         if not item.is_weapon():
             game.send_to_player(player, f"{item.name} is not a weapon.")
             return
         
-        # Check hands requirement
         if item.hands == 2:
-            # Two-handed weapon - unequip shield/offhand if equipped
             if "offhand" in player.equipped:
                 old_offhand = player.equipped["offhand"]
                 old_offhand_item = game.items.get(old_offhand)
@@ -157,7 +169,6 @@ def equip_command(game, player, args):
                 game.send_to_player(player, f"You unequip your {old_offhand_name} to wield {item.name}.")
                 del player.equipped["offhand"]
         
-        # Unequip old weapon if any
         if "weapon" in player.equipped:
             old_weapon_id = player.equipped["weapon"]
             old_weapon = game.items.get(old_weapon_id)
@@ -166,14 +177,43 @@ def equip_command(game, player, args):
         
         player.equipped["weapon"] = item_id
         game.send_to_player(player, f"You equip {item.name}.")
-        
-        # Show weapon stats
         damage_min, damage_max = item.get_effective_damage()
         game.send_to_player(player, f"  Damage: {damage_min}-{damage_max} ({item.damage_type})")
         game.send_to_player(player, f"  Critical: {int(item.get_effective_crit_chance() * 100)}%")
         game.send_to_player(player, f"  Durability: {item.get_current_durability()}/{item.max_durability}")
-    else:
-        game.send_to_player(player, f"Equipping to '{slot}' slot is not yet implemented.")
+        return
+    
+    # Armor: head, chest, body, arms, legs, shield, armor, offhand
+    if slot in ("head", "chest", "body", "arms", "legs", "shield", "armor", "offhand"):
+        if not item.is_armor():
+            game.send_to_player(player, f"{item.name} is not armor.")
+            return
+        armor_slot = item.get_armor_slot()
+        req_slot = "chest" if slot in ("armor", "body") else ("shield" if slot == "offhand" else slot)
+        if armor_slot != req_slot:
+            game.send_to_player(player, f"{item.name} is worn on the {armor_slot}, not the {req_slot}. Try: equip {armor_slot} {item.name}")
+            return
+        if req_slot == "shield" and "weapon" in player.equipped:
+            wp = game.items.get(player.equipped["weapon"])
+            if wp and getattr(wp, "hands", 1) == 2:
+                old_id = player.equipped["weapon"]
+                old_w = game.items.get(old_id)
+                if old_w:
+                    game.send_to_player(player, f"You unequip your {old_w.name} to use the shield.")
+                del player.equipped["weapon"]
+        if req_slot in player.equipped:
+            old_id = player.equipped[req_slot]
+            old_armor = game.items.get(old_id)
+            if old_armor:
+                game.send_to_player(player, f"You unequip your {old_armor.name}.")
+        player.equipped[req_slot] = item_id
+        game.send_to_player(player, f"You equip {item.name} on your {req_slot}.")
+        dur = item.get_current_durability() if hasattr(item, "get_current_durability") else getattr(item, "current_durability", 0)
+        max_dur = getattr(item, "max_durability", 50)
+        game.send_to_player(player, f"  DR: {item.damage_reduction} | Durability: {dur}/{max_dur}")
+        return
+    
+    game.send_to_player(player, f"Unknown slot '{slot}'. Use: weapon, head, chest, arms, legs, shield.")
 
 
 def unequip_command(game, player, args):
