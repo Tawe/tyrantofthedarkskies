@@ -1,0 +1,9 @@
+{
+  "item_id": "weapon_coral_trident",
+  "name": "Coral Trident",
+  "description": "A trident grown from living coral, warm to the touch. It hums faintly, as if remembering the sea.",
+  "item_type": "weapon",
+  "value": 1200,
+  "weapon_template_id": "trident",
+  "weapon_modifier_id": "coral"
+}

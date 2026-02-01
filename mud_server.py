@@ -139,6 +139,8 @@ class Room:
         self.zone = None
         # Interactables: barrel of sticks, etc. (object_id, name, keywords, examine_text, actions)
         self.interactables = []
+        # Hidden exits revealed by player flags: [{ "direction": "east", "target": "room_id", "reveal_flag": "flag_name" }]
+        self.hidden_exits = []
         # Weather (docs/weather_system.md): region_id, weather_exposure (indoor | sheltered | outdoor | coastal)
         self.region_id = None
         self.weather_exposure = None
@@ -156,6 +158,7 @@ class Room:
             "spawn_groups": getattr(self, "spawn_groups", []),
             "zone": getattr(self, "zone", None),
             "interactables": getattr(self, "interactables", []),
+            "hidden_exits": getattr(self, "hidden_exits", []),
             "region_id": getattr(self, "region_id", None),
             "weather_exposure": getattr(self, "weather_exposure", None),
         }
@@ -890,6 +893,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             room.spawn_groups = room_data.get("spawn_groups", [])
                             room.zone = room_data.get("zone")
                             room.interactables = room_data.get("interactables", [])
+                            room.hidden_exits = room_data.get("hidden_exits", [])
                             room.region_id = room_data.get("region_id") or room_data.get("zone")
                             room.weather_exposure = room_data.get("weather_exposure")
                             self.rooms[room.room_id] = room
@@ -919,6 +923,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 room.spawn_groups = room_data.get("spawn_groups", [])
                                 room.zone = room_data.get("zone")
                                 room.interactables = room_data.get("interactables", [])
+                                room.hidden_exits = room_data.get("hidden_exits", [])
                                 room.region_id = room_data.get("region_id") or room_data.get("zone")
                                 room.weather_exposure = room_data.get("weather_exposure")
                                 self.rooms[room.room_id] = room
@@ -1001,8 +1006,11 @@ that scales by tier, and offers attribute bonuses and starting skills.
         npc.level = lr[0] if lr and len(lr) > 0 else 1
         loot = data.get("loot", {})
         npc.exp_value = loot.get("xp_value", 0)
-        lt_id = loot.get("loot_table_id")
-        npc.loot_table = [{"loot_table_id": lt_id}] if lt_id else []
+        if loot.get("entries"):
+            npc.loot_table = list(loot["entries"])
+        else:
+            lt_id = loot.get("loot_table_id")
+            npc.loot_table = [{"loot_table_id": lt_id}] if lt_id else []
         npc.known_maneuvers = list(data.get("maneuvers", []))
         npc.active_maneuvers = []
         skills = data.get("skills", {})
@@ -1046,6 +1054,8 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     npc.is_merchant = npc_data["is_merchant"]
                 if "faction" in npc_data:
                     npc.faction = npc_data["faction"]
+                if self.npc_scheduler and npc_data.get("schedule"):
+                    self.npc_scheduler.add_npc_schedule(npc_id, npc_data["schedule"])
             except Exception as e:
                 print(f"Error overlaying NPC {filename}: {e}")
 
@@ -1111,7 +1121,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                     npc.is_merchant = npc_data["is_merchant"]
                                 if "faction" in npc_data:
                                     npc.faction = npc_data["faction"]
-                                
+
+                                if self.npc_scheduler and npc_data.get("schedule"):
+                                    self.npc_scheduler.add_npc_schedule(npc.npc_id, npc_data["schedule"])
+
                                 self.npcs[npc.npc_id] = npc
                                 
                                 # If NPC has combat_role but missing stats, generate them
@@ -2167,10 +2180,16 @@ that scales by tier, and offers attribute bonuses and starting skills.
             if overlay:
                 output += f"\n\n{overlay}\n"
         
+        exits = []
         if room.exits:
-            exits = []
             for direction in room.exits.keys():
                 exits.append(self.format_exit(direction))
+        for h in getattr(room, "hidden_exits", []) or []:
+            d = h.get("direction")
+            flag = h.get("reveal_flag")
+            if d and flag and getattr(player, "has_flag", lambda n: False)(flag):
+                exits.append(self.format_exit(d))
+        if exits:
             output += f"\nExits: {' '.join(exits)}"
             
         other_players = [p for p in room.players if p != player.name]
@@ -2346,7 +2365,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         self.send_to_player(player, output)
     
     def look_direction(self, player, room, direction):
-        """Look in a specific direction, respecting doors and obstacles"""
+        """Look in a specific direction, respecting locked doors, secret doors, and obstacles."""
         # Normalize direction (handle abbreviations)
         direction_map = {
             'n': 'north', 's': 'south', 'e': 'east', 'w': 'west',
@@ -2354,17 +2373,42 @@ that scales by tier, and offers attribute bonuses and starting skills.
             'u': 'up', 'd': 'down', 'in': 'in', 'out': 'out'
         }
         direction = direction_map.get(direction, direction)
-        
-        # Check if exit exists
-        if direction not in room.exits:
-            available = ", ".join([self.format_exit(d) for d in room.exits.keys()])
+
+        # Build visible exits (normal + revealed secrets only)
+        visible_exits = set(room.exits.keys())
+        for h in getattr(room, "hidden_exits", []) or []:
+            if h.get("reveal_flag") and getattr(player, "has_flag", lambda n: False)(h.get("reveal_flag", "")):
+                visible_exits.add(h.get("direction"))
+
+        if direction not in visible_exits:
+            available = ", ".join([self.format_exit(d) for d in sorted(visible_exits)])
             self.send_to_player(player, self.format_error(f"You cannot look {self.format_brackets(direction)}. Available directions: {available}"))
             return
-        
-        exit_data = room.exits[direction]
+
+        # Resolve exit data (normal or revealed hidden exit)
+        if direction in room.exits:
+            exit_data = room.exits[direction]
+        else:
+            exit_data = None
+            for h in getattr(room, "hidden_exits", []) or []:
+                if h.get("direction") == direction:
+                    exit_data = h.get("target")
+                    break
+            if exit_data is None:
+                self.send_to_player(player, self.format_error("You cannot look that way."))
+                return
+
+        # Locked door: required_flag not set — don't show what's beyond
+        if isinstance(exit_data, dict):
+            required_flag = exit_data.get("required_flag")
+            if required_flag and not getattr(player, "has_flag", lambda n: False)(required_flag):
+                blocked = exit_data.get("blocked_text") or "Something blocks your view."
+                self.send_to_player(player, f"You look {self.format_exit(direction)}, but {blocked}")
+                return
+
         target_room_id = self.get_exit_target(exit_data)
-        door_info = self.get_exit_door(exit_data)
-        
+        door_info = self.get_exit_door(exit_data) if isinstance(exit_data, dict) else None
+
         # Check if there's a door or obstacle blocking the view
         if door_info:
             if isinstance(door_info, str):
@@ -2429,21 +2473,63 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 )
                 return
 
-        if direction not in room.exits:
-            available_exits = ", ".join([self.format_exit(d) for d in room.exits.keys()])
+        visible_exits = set(room.exits.keys())
+        for h in getattr(room, "hidden_exits", []) or []:
+            if h.get("reveal_flag") and getattr(player, "has_flag", lambda n: False)(h.get("reveal_flag", "")):
+                visible_exits.add(h.get("direction"))
+        if direction not in visible_exits:
+            available_exits = ", ".join([self.format_exit(d) for d in sorted(visible_exits)])
             self.send_to_player(player, self.format_error(f"You cannot go {self.format_brackets(direction)}. Available exits: {available_exits}"))
             return
-            
-        old_room_id = player.room_id
-        # Handle both string and dict exit formats
-        exit_data = room.exits[direction]
+
+        if direction in room.exits:
+            exit_data = room.exits[direction]
+        else:
+            exit_data = None
+            for h in getattr(room, "hidden_exits", []) or []:
+                if h.get("direction") == direction and getattr(player, "has_flag", lambda n: False)(h.get("reveal_flag", "")):
+                    exit_data = h.get("target")
+                    break
+            if exit_data is None:
+                return
+        if isinstance(exit_data, str):
+            exit_data = {"target": exit_data}
+        elif exit_data is None:
+            return
+        if isinstance(exit_data, dict):
+            required_flag = exit_data.get("required_flag")
+            if required_flag and not getattr(player, "has_flag", lambda n: False)(required_flag):
+                blocked_text = exit_data.get("blocked_text") or "Something blocks the way."
+                self.send_to_player(player, blocked_text)
+                return
+
         new_room_id = self.get_exit_target(exit_data)
+        fall_damage = 0
+        fall_text = None
+
+        if isinstance(exit_data, dict) and exit_data.get("skill_check"):
+            sc = exit_data["skill_check"]
+            skill = sc.get("skill", "climbing")
+            difficulty_mod = sc.get("difficulty_mod", 0)
+            roll = player.roll_skill_check(skill, difficulty_mod)
+            success = roll["result"] in ("success", "critical")
+            player.check_skill_advancement(skill, success)
+            if not success:
+                if sc.get("fail_stays"):
+                    self.send_to_player(player, sc.get("fail_text") or "You slip and don't make it.")
+                    return
+                if sc.get("fail_target"):
+                    new_room_id = sc["fail_target"]
+                    fall_damage = sc.get("fall_damage", 0)
+                    fall_text = sc.get("fall_text") or "You lose your footing and fall!"
+
+        old_room_id = player.room_id
         new_room = self.get_room(new_room_id)
-        
+
         if not new_room:
             self.send_to_player(player, self.format_error("That direction leads to an unknown place."))
             return
-        
+
         # Check if target room is a shop that's currently closed
         if self.store_hours and new_room_id in self.store_hours.store_hours:
             if not self.store_hours.is_store_open(new_room_id):
@@ -2492,13 +2578,19 @@ that scales by tier, and offers attribute bonuses and starting skills.
             self.check_level_up(player)
         
         self.broadcast_to_room(old_room_id, f"{player.name} leaves {direction}.", player.name)
-        self.send_to_player(player, self.format_success(f"You move {self.format_exit(direction)}."))
+        if fall_damage:
+            if fall_text:
+                self.send_to_player(player, self.format_error(fall_text))
+            player.health = max(0, player.health - fall_damage)
+            self.send_to_player(player, f"You take {fall_damage} damage. Health: {player.health}/{player.max_health}")
+        else:
+            self.send_to_player(player, self.format_success(f"You move {self.format_exit(direction)}."))
         if COMMANDS_AVAILABLE:
             look_command(self, player, [])
         else:
             self.look_command(player, [])
         self.broadcast_to_room(new_room_id, f"{player.name} arrives.", player.name)
-        
+
     def say_command(self, player, args):
         if not args:
             self.send_to_player(player, "Say what?")
@@ -2640,7 +2732,163 @@ that scales by tier, and offers attribute bonuses and starting skills.
             return
 
         self.send_to_player(player, "You don't see that here.")
-        
+
+    def search_command(self, player, args):
+        """Search an interactable; runs skill check and applies success/fail from actions.search."""
+        room = self.get_room(player.room_id)
+        if not room:
+            self.send_to_player(player, "You are in an unknown location.")
+            return
+        interactables = getattr(room, "interactables", []) or []
+        search_configs = []
+        for obj in interactables:
+            actions = obj.get("actions") or {}
+            search_cfg = actions.get("search") if isinstance(actions.get("search"), dict) else None
+            if not search_cfg or not search_cfg.get("skill"):
+                continue
+            keywords = (obj.get("keywords") or []) + [obj.get("name", "")]
+            if args:
+                target = " ".join(args).lower()
+                if not any(target in str(k).lower() or str(k).lower() in target for k in keywords):
+                    continue
+            search_configs.append((obj, search_cfg))
+        if not search_configs:
+            if args:
+                self.send_to_player(player, "You don't find anything to search there.")
+            else:
+                self.send_to_player(player, "Search what? Try 'search <thing>'.")
+            return
+        if len(search_configs) > 1:
+            names = [c[0].get("name", c[0].get("object_id", "?")) for c in search_configs]
+            self.send_to_player(player, f"Search which? {' '.join(f'[{n}]' for n in names)}")
+            return
+        obj, search_cfg = search_configs[0]
+        key = obj.get("object_id", "?")
+        state = getattr(player, "interactable_searches", None) or {}
+        if not isinstance(state, dict):
+            state = {}
+        entry = state.get(key, {"count": 0, "last_at": 0})
+        limit = search_cfg.get("limit_per_player")
+        cooldown_sec = search_cfg.get("cooldown_seconds", 0)
+        now = time.time()
+        if limit is not None and entry.get("count", 0) >= limit:
+            self.send_to_player(player, search_cfg.get("already_done_text") or "You've already searched that thoroughly.")
+            return
+        if cooldown_sec and (now - entry.get("last_at", 0)) < cooldown_sec:
+            self.send_to_player(player, search_cfg.get("cooldown_text") or "You need to wait before searching again.")
+            return
+        skill = search_cfg.get("skill", "investigating")
+        difficulty_mod = search_cfg.get("difficulty_mod", 0)
+        result = player.roll_skill_check(skill, difficulty_mod)
+        success = result.get("result") in ("success", "critical")
+        player.check_skill_advancement(skill, success)
+        if success:
+            state[key] = {"count": entry.get("count", 0) + 1, "last_at": now}
+            player.interactable_searches = state
+            success_block = search_cfg.get("success") or {}
+            if isinstance(success_block, str):
+                success_block = {"success_text": success_block}
+            gives_item = success_block.get("gives_item")
+            if gives_item and gives_item in self.items:
+                player.inventory.append(gives_item)
+                item = self.items.get(gives_item)
+                item_display = self.format_item(item.name) if item else gives_item
+                self.send_to_player(player, self.format_success(success_block.get("success_text") or f"You find {item_display}."))
+                self.broadcast_to_room(player.room_id, f"{player.name} finds something.", player.name)
+            else:
+                set_flag_name = success_block.get("set_flag")
+                if set_flag_name and hasattr(player, "set_flag"):
+                    player.set_flag(set_flag_name)
+                    if hasattr(self, "save_player_data"):
+                        self.save_player_data(player)
+                move_to_room_id = success_block.get("move_to_room_id")
+                if move_to_room_id:
+                    target_room = self.get_room(move_to_room_id)
+                    if target_room:
+                        old_room_id = player.room_id
+                        old_room = self.get_room(old_room_id)
+                        if old_room:
+                            old_room.players.discard(player.name)
+                        player.room_id = move_to_room_id
+                        target_room.players.add(player.name)
+                        msg = success_block.get("success_text") or "You find a hidden passage and slip through."
+                        self.send_to_player(player, self.format_success(msg))
+                        self.broadcast_to_room(old_room_id, f"{player.name} leaves.", player.name)
+                        self.broadcast_to_room(move_to_room_id, f"{player.name} arrives.", player.name)
+                        if COMMANDS_AVAILABLE:
+                            look_command(self, player, [])
+                        else:
+                            self.look_command(player, [])
+                        return
+                msg = success_block.get("success_text") or "You find something."
+                self.send_to_player(player, self.format_success(msg))
+        else:
+            fail_block = search_cfg.get("fail")
+            if isinstance(fail_block, dict):
+                fail_text = fail_block.get("fail_text", "You find nothing of use.")
+            else:
+                fail_text = search_cfg.get("fail_text") or "You find nothing of use."
+            self.send_to_player(player, fail_text)
+
+    def place_command(self, player, args):
+        """Place an item on/in an interactable (e.g. place coral idol in hollow)."""
+        if not args or len(args) < 2:
+            self.send_to_player(player, "Place what where? Usage: place <item> [on|in] <target>")
+            return
+        room = self.get_room(player.room_id)
+        if not room:
+            self.send_to_player(player, "You are in an unknown location.")
+            return
+        # Parse: place item [on|in] target  or  place item target
+        words = [w.lower() for w in args]
+        if words[1] in ("on", "in") and len(words) >= 4:
+            item_name = words[0]
+            target_name = " ".join(words[2:])
+        else:
+            item_name = words[0]
+            target_name = " ".join(words[1:])
+        # Find item in player inventory (match by name)
+        item_id = None
+        for inv_id in player.inventory:
+            item = self.items.get(inv_id)
+            if item and item_name in item.name.lower():
+                item_id = inv_id
+                break
+        if not item_id:
+            self.send_to_player(player, f"You don't have '{item_name}'.")
+            return
+        interactables = getattr(room, "interactables", []) or []
+        place_configs = []
+        for obj in interactables:
+            place_cfg = (obj.get("actions") or {}).get("place")
+            if not isinstance(place_cfg, dict):
+                continue
+            required_item = place_cfg.get("required_item")
+            if not required_item or required_item != item_id:
+                continue
+            keywords = (obj.get("keywords") or []) + [obj.get("name", "")]
+            if not any(target_name in str(k).lower() or str(k).lower() in target_name for k in keywords):
+                continue
+            place_configs.append((obj, place_cfg))
+        if not place_configs:
+            self.send_to_player(player, "You can't place that there.")
+            return
+        if len(place_configs) > 1:
+            names = [c[0].get("name", "?") for c in place_configs]
+            self.send_to_player(player, f"Place on which? {' '.join(f'[{n}]' for n in names)}")
+            return
+        obj, place_cfg = place_configs[0]
+        if place_cfg.get("consume_item", True):
+            player.inventory.remove(item_id)
+        set_flag_name = place_cfg.get("set_flag")
+        if set_flag_name and hasattr(player, "set_flag"):
+            player.set_flag(set_flag_name)
+            if hasattr(self, "save_player_data"):
+                self.save_player_data(player)
+        msg = place_cfg.get("success_text") or "You place it. Something clicks."
+        self.send_to_player(player, self.format_success(msg))
+        self.broadcast_to_room(player.room_id, f"{player.name} places something.", player.name)
+
     def drop_command(self, player, args):
         if not args:
             self.send_to_player(player, "Drop what?")
@@ -3659,9 +3907,50 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 break
         
         if not npc:
+            # Check interactables with talk->travel (e.g. Old Lorek's skiff)
+            interactables = getattr(room, "interactables", []) or []
+            full_input = " ".join(args).lower()
+            for obj in interactables:
+                talk_cfg = (obj.get("actions") or {}).get("talk")
+                if not isinstance(talk_cfg, dict):
+                    continue
+                result = talk_cfg.get("result") or {}
+                travel_to = result.get("travel_to_room_id")
+                if not travel_to:
+                    continue
+                required_flag = result.get("required_flag")
+                if required_flag and not getattr(player, "has_flag", lambda n: False)(required_flag):
+                    fail_text = result.get("required_fail_text") or "You can't do that yet."
+                    self.send_to_player(player, fail_text)
+                    return
+                keywords = (obj.get("keywords") or []) + [obj.get("name", "")]
+                if not any(k and (full_input in str(k).lower() or str(k).lower() in full_input) for k in keywords):
+                    continue
+                req_keywords = talk_cfg.get("keywords") or []
+                if req_keywords and not any(kw in full_input for kw in req_keywords):
+                    continue
+                target_room = self.get_room(travel_to)
+                if not target_room:
+                    self.send_to_player(player, "That doesn't seem to go anywhere right now.")
+                    return
+                old_room_id = player.room_id
+                old_room = self.get_room(old_room_id)
+                if old_room:
+                    old_room.players.discard(player.name)
+                player.room_id = travel_to
+                target_room.players.add(player.name)
+                msg = talk_cfg.get("success_text") or "You travel to another place."
+                self.send_to_player(player, self.format_success(msg))
+                self.broadcast_to_room(old_room_id, f"{player.name} leaves.", player.name)
+                self.broadcast_to_room(travel_to, f"{player.name} arrives.", player.name)
+                try:
+                    self.look_command(player, [])
+                except Exception:
+                    pass
+                return
             self.send_to_player(player, f"You don't see {npc_name} here.")
             return
-        
+
         # Get keyword (rest of args)
         if len(args) < 2:
             # Show greeting/dialogue
@@ -3698,10 +3987,18 @@ that scales by tier, and offers attribute bonuses and starting skills.
                         break
             
             if matched_key:
-                response = npc.keywords[matched_key]
+                raw = npc.keywords[matched_key]
+                if isinstance(raw, dict):
+                    response = raw.get("response", "")
+                    set_flag_name = raw.get("set_flag")
+                    if set_flag_name and hasattr(player, "set_flag"):
+                        player.set_flag(set_flag_name)
+                        self.save_player_data(player)
+                else:
+                    response = raw
                 self.send_to_player(player, f"{npc.name} says: \"{response}\"")
                 self.broadcast_to_room(player.room_id, f"{player.name} talks with {npc.name}.", player.name)
-                
+
                 # Special handling for certain keywords
                 if hasattr(npc, 'is_merchant') and npc.is_merchant:
                     if matched_key in ["goods", "buy", "shop"]:
@@ -5154,6 +5451,12 @@ First, choose your race (affects attributes and starting skills):
             elif cmd == "pick" and args and args[0].lower() == "up":
                 self.get_command(player, args[1:])
                 command_handled = True
+            elif cmd == "search":
+                self.search_command(player, args)
+                command_handled = True
+            elif cmd == "place" and args:
+                self.place_command(player, args)
+                command_handled = True
             elif cmd == "drop":
                 drop_command(self, player, args)
                 command_handled = True
@@ -5266,6 +5569,12 @@ First, choose your race (affects attributes and starting skills):
                 command_handled = True
             elif cmd == "pick" and args and args[0].lower() == "up":
                 self.get_command(player, args[1:])
+                command_handled = True
+            elif cmd == "search":
+                self.search_command(player, args)
+                command_handled = True
+            elif cmd == "place" and args:
+                self.place_command(player, args)
                 command_handled = True
             elif cmd == "drop":
                 self.drop_command(player, args)

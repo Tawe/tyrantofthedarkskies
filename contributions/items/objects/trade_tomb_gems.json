@@ -1,0 +1,8 @@
+{
+  "item_id": "trade_tomb_gems",
+  "name": "Ancient Tomb Gems",
+  "description": "Dull gemstones worked long ago, still valuable despite the age etched into them.",
+  "item_type": "item",
+  "value": 180,
+  "stats": {}
+}

@@ -1,0 +1,46 @@
+{
+  "room_id": "cave_coral_idol_chamber",
+  "name": "Coral Idol Chamber",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "A natural chamber lit by reflected light. In the center lies a coral idol, abandoned as if dropped in haste long ago.",
+  "exits": {
+    "south": "cave_pit_room"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "coral_idol",
+      "name": "coral idol",
+      "keywords": ["idol", "coral", "offering"],
+      "examine_text": "A coral carving worn smooth by time. It feels oddly warm when you touch it.",
+      "actions": {
+        "take": {
+          "gives_item": "quest_coral_idol",
+          "limit_per_player": 1,
+          "empty_text": "The idol is no longer here."
+        }
+      }
+    },
+    {
+      "object_id": "secret_door_to_opening",
+      "name": "stone panel",
+      "keywords": ["panel", "stone", "secret", "door", "wall"],
+      "examine_text": "One panel looks slightly misaligned. There's a gap thin as a fingernail.",
+      "actions": {
+        "search": {
+          "skill": "investigating",
+          "difficulty_mod": 0,
+          "success": {
+            "move_to_room_id": "cave_tomb_opening",
+            "success_text": "You find a hidden passage and slip through."
+          },
+          "fail_text": "You find nothing but smooth stone."
+        }
+      }
+    }
+  ]
+}

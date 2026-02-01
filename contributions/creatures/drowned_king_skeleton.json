@@ -1,0 +1,40 @@
+{
+  "template_id": "drowned_king_skeleton",
+  "name": "The Drowned King",
+  "entity_type": "creature",
+  "tier": "low",
+  "level_range": [5, 5],
+  "role": "boss",
+  "stats": {
+    "hp_max": 120,
+    "attack": {
+      "speed_cost": 1.0,
+      "accuracy": 12,
+      "damage_min": 6,
+      "damage_max": 12,
+      "damage_type": "slashing",
+      "crit_chance": 0.08
+    }
+  },
+  "skills": {
+    "Dodging": 10,
+    "Fighting": 14
+  },
+  "behaviors": {
+    "preferred_range_band": "engaged",
+    "pursue": "none",
+    "leash_radius": 0,
+    "leash_time": 0,
+    "threat_profile": "default",
+    "morale": { "flee_at_hp_pct": 0.0 }
+  },
+  "loot": {
+    "xp_value": 220,
+    "entries": [
+      { "item": "trade_tomb_gems", "chance": 100 },
+      { "item": "weapon_coral_trident", "chance": 35 },
+      { "item": "trade_skinshaw_art", "chance": 60 }
+    ]
+  },
+  "maneuvers": []
+}

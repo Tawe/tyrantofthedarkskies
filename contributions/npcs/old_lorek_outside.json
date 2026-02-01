@@ -1,0 +1,19 @@
+{
+  "npc_id": "old_lorek_outside",
+  "name": "Old Lorek",
+  "description": "Old Lorek stands by his skiff, avoiding the cave mouth as if it might look back.",
+  "health": 50,
+  "max_health": 50,
+  "combat_role": null,
+  "tier": "Low",
+  "level": 2,
+  "exp_value": 0,
+  "is_hostile": false,
+  "dialogue": [
+    "I'll wait here. Don't ask me to come in.",
+    "When you're ready… you say the word, and we go back."
+  ],
+  "keywords": {
+    "return": "Back to the docks? Good. I don't like this place."
+  }
+}

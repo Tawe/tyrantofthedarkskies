@@ -51,6 +51,50 @@ def talk_command(game, player, args):
             break
     
     if not npc:
+        # Check interactables with talk->travel (e.g. Old Lorek's skiff)
+        interactables = getattr(room, "interactables", []) or []
+        full_input = " ".join(args).lower()
+        for obj in interactables:
+            talk_cfg = (obj.get("actions") or {}).get("talk")
+            if not isinstance(talk_cfg, dict):
+                continue
+            result = talk_cfg.get("result") or {}
+            travel_to = result.get("travel_to_room_id")
+            if not travel_to:
+                continue
+            required_flag = result.get("required_flag")
+            if required_flag and not getattr(player, "has_flag", lambda n: False)(required_flag):
+                fail_text = result.get("required_fail_text") or "You can't do that yet."
+                game.send_to_player(player, fail_text)
+                return
+            keywords = (obj.get("keywords") or []) + [obj.get("name", "")]
+            if not any(k and (full_input in str(k).lower() or str(k).lower() in full_input) for k in keywords):
+                continue
+            # Optional: require one of talk.keywords in input
+            req_keywords = talk_cfg.get("keywords") or []
+            if req_keywords and not any(kw in full_input for kw in req_keywords):
+                continue
+            target_room = game.get_room(travel_to)
+            if not target_room:
+                game.send_to_player(player, "That doesn't seem to go anywhere right now.")
+                return
+            old_room_id = player.room_id
+            old_room = game.get_room(old_room_id)
+            if old_room:
+                old_room.players.discard(player.name)
+            player.room_id = travel_to
+            target_room.players.add(player.name)
+            msg = talk_cfg.get("success_text") or "You travel to another place."
+            game.send_to_player(player, game.format_success(msg))
+            game.broadcast_to_room(old_room_id, f"{player.name} leaves.", player.name)
+            game.broadcast_to_room(travel_to, f"{player.name} arrives.", player.name)
+            try:
+                from commands.movement import look_command
+                look_command(game, player, [])
+            except ImportError:
+                if hasattr(game, "look_command"):
+                    game.look_command(player, [])
+            return
         game.send_to_player(player, f"You don't see {npc_name} here.")
         return
     
@@ -90,10 +134,19 @@ def talk_command(game, player, args):
                     break
         
         if matched_key:
-            response = npc.keywords[matched_key]
+            raw = npc.keywords[matched_key]
+            if isinstance(raw, dict):
+                response = raw.get("response", "")
+                set_flag_name = raw.get("set_flag")
+                if set_flag_name and hasattr(player, "set_flag"):
+                    player.set_flag(set_flag_name)
+                    if hasattr(game, "save_player_data"):
+                        game.save_player_data(player)
+            else:
+                response = raw
             game.send_to_player(player, f"{npc.name} says: \"{response}\"")
             game.broadcast_to_room(player.room_id, f"{player.name} talks with {npc.name}.", player.name)
-            
+
             # Special handling for certain keywords
             if hasattr(npc, 'is_merchant') and npc.is_merchant:
                 if matched_key in ["goods", "buy", "shop"]:

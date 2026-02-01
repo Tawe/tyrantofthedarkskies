@@ -1,0 +1,29 @@
+{
+  "room_id": "cave_outside",
+  "name": "Outside the Cave",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "coastal",
+  "description": "A low cave mouth opens along the rocky coast. Dark water pools in the stone, and the air smells of salt and old rot. An old skiff bobs nearby, its rope tied to a jagged post.",
+  "exits": {
+    "east": "cave_watery_entry"
+  },
+  "items": [],
+  "npcs": ["old_lorek_outside"],
+  "flags": ["public"],
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "lorek_return",
+      "name": "Old Lorek's skiff",
+      "keywords": ["lorek", "skiff", "boat", "return"],
+      "examine_text": "Old Lorek waits by the skiff, refusing to look into the cave for long.",
+      "actions": {
+        "talk": {
+          "keywords": ["back", "return", "docks", "new cove"],
+          "result": { "travel_to_room_id": "docks" },
+          "success_text": "Old Lorek helps you into the skiff and rows away from the cave without looking back."
+        }
+      }
+    }
+  ]
+}

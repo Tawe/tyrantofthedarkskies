@@ -1,0 +1,32 @@
+{
+  "room_id": "cave_pit_room",
+  "name": "Pit Room",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "A wide pit splits the chamber floor. The far side is reachable—but the stone looks slick, and the drop disappears into shadow.",
+  "exits": {
+    "south": "cave_nest",
+    "north": {
+      "target": "cave_coral_idol_chamber",
+      "skill_check": {
+        "skill": "climbing",
+        "difficulty_mod": 0,
+        "fail_target": "cave_pit_bottom",
+        "fall_damage": 15,
+        "fall_text": "You slip on the slick stone and plunge into the pit!"
+      }
+    }
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "pit_edge",
+      "name": "pit edge",
+      "keywords": ["pit", "edge", "gap"],
+      "examine_text": "A slick, treacherous jump. You could try to cross it—or you could fall."
+    }
+  ]
+}

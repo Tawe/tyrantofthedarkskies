@@ -1,0 +1,27 @@
+{
+  "npc_id": "old_lorek_docks",
+  "name": "Old Lorek",
+  "description": "An old fisherman with a salt-crusted beard sits near the edge of the docks, staring out toward the open sea. His small skiff rocks gently beside him.",
+  "schedule": [
+    { "start": "06:00", "end": "11:00", "room_id": "docks" }
+  ],
+  "health": 50,
+  "max_health": 50,
+  "combat_role": null,
+  "tier": "Low",
+  "level": 2,
+  "exp_value": 0,
+  "is_hostile": false,
+  "dialogue": [
+    "Old Lorek squints at you. \"You look like the sort that doesn't scare easy.\"",
+    "If you're here for work, there's plenty. If you're here for trouble, take it elsewhere."
+  ],
+  "keywords": {
+    "cave": "Found a cave along the coast. Low mouth. Smells wrong. I won't step inside—something in there ain't for men like me.",
+    "spirits": "Call 'em spirits if you want. Whispers. Cold spots. The feeling of being watched.",
+    "boat": {
+      "response": "Aye… I could take you. But I'm not risking my hide for nothing. You want me to row you there… say the word.",
+      "set_flag": "quest_sunken_cave_unlocked"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "room_id": "cave_nest",
+  "name": "The Nest",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "Broken shells and cracked stone form a crude nest. The air vibrates with angry clicks, and something larger shifts in the dark.",
+  "exits": {
+    "east": "cave_watery_entry",
+    "north": "cave_pit_room"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": [],
+  "spawn_groups": [
+    {
+      "spawn_id": "enc_nest_crabs",
+      "template_id": "reef_crab",
+      "max_alive": 2,
+      "cooldown_seconds": 1200
+    },
+    {
+      "spawn_id": "enc_nest_mother",
+      "template_id": "reef_crab_brute",
+      "max_alive": 1,
+      "cooldown_seconds": 1200
+    }
+  ],
+  "interactables": [
+    {
+      "object_id": "nest_debris",
+      "name": "nest debris",
+      "keywords": ["nest", "debris", "shells", "bones"],
+      "examine_text": "Shell fragments, kelp strands, and bits of drift. Something glints within.",
+      "actions": {
+        "take": {
+          "gives_item": "trinket_seashell_necklace",
+          "limit_per_player": 1,
+          "empty_text": "You've already taken what was worth taking."
+        }
+      }
+    }
+  ]
+}

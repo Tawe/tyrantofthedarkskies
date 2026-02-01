@@ -1,0 +1,59 @@
+{
+  "room_id": "cave_tomb_opening",
+  "name": "Tomb Opening",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "The rough cave walls smooth into worked stone. A fitted stone wall blocks the way, a circular hollow set at its center like a missing keystone.",
+  "exits": {
+    "west": "cave_drawings",
+    "north": {
+      "target": "cave_kings_tomb",
+      "required_flag": "puzzle_sunken_tomb_unlocked",
+      "blocked_text": "The wall blocks the passage. A circular hollow in the center might accept something."
+    }
+  },
+  "hidden_exits": [
+    {
+      "direction": "east",
+      "target": "cave_coral_idol_chamber",
+      "reveal_flag": "secret_tomb_opening_idol_revealed"
+    }
+  ],
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "stone_hollow",
+      "name": "circular hollow",
+      "keywords": ["hollow", "circle", "socket", "hole", "wall", "idol"],
+      "examine_text": "A perfectly carved recess. Something round and coral-shaped would fit snugly.",
+      "actions": {
+        "place": {
+          "required_item": "quest_coral_idol",
+          "consume_item": true,
+          "set_flag": "puzzle_sunken_tomb_unlocked",
+          "success_text": "The idol fits the hollow. The wall grinds aside, revealing the tomb beyond."
+        }
+      }
+    },
+    {
+      "object_id": "hidden_seam_to_idol",
+      "name": "worked stone seam",
+      "keywords": ["seam", "stone", "wall", "draft", "crack"],
+      "examine_text": "A faint seam runs along the wall. The air is cooler here, like it slips through from somewhere else.",
+      "actions": {
+        "search": {
+          "skill": "investigating",
+          "difficulty_mod": 0,
+          "success": {
+            "set_flag": "secret_tomb_opening_idol_revealed",
+            "success_text": "You find a concealed door in the worked stone."
+          },
+          "fail_text": "You find nothing but cold stone."
+        }
+      }
+    }
+  ]
+}

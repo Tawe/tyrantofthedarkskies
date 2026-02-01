@@ -1,0 +1,26 @@
+{
+  "room_id": "cave_drawings",
+  "name": "Cave Drawings",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "The cave walls here are etched with crude drawings. Small figures kneel before a larger shape seated on a broken throne, offering an idol carved from coral.",
+  "exits": {
+    "south": "cave_watery_entry",
+    "east": "cave_tomb_opening"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "drawings",
+      "name": "cave drawings",
+      "keywords": ["drawings", "etchings", "wall", "art"],
+      "examine_text": "The figures are thin and angular. The idol is drawn again and again. The seated shape is crowned, its mouth open as if in a silent command.",
+      "actions": {
+        "examine": true
+      }
+    }
+  ]
+}

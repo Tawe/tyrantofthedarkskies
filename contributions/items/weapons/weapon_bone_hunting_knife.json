@@ -1,0 +1,10 @@
+{
+  "item_id": "weapon_bone_hunting_knife",
+  "name": "Bone Hunting Knife",
+  "description": "A crude knife carved from bone and lashed with dried cord. Poorly balanced, but sharp enough to draw blood.",
+  "item_type": "weapon",
+  "value": 35,
+  "stats": {},
+  "weapon_template_id": "dagger",
+  "weapon_modifier_id": "bone"
+}

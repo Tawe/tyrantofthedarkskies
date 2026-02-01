@@ -20,6 +20,23 @@
   "weather_exposure": "coastal",
   "interactables": [
     {
+      "object_id": "lorek_boat",
+      "name": "Old Lorek's skiff",
+      "keywords": ["lorek", "skiff", "boat", "cave", "take", "row", "coast"],
+      "examine_text": "An old fisherman's skiff. Old Lorek sits nearby—he might row you to the cave along the coast if you ask.",
+      "actions": {
+        "talk": {
+          "keywords": ["boat", "cave", "take", "row", "go"],
+          "result": {
+            "travel_to_room_id": "cave_outside",
+            "required_flag": "quest_sunken_cave_unlocked",
+            "required_fail_text": "Old Lorek hasn't agreed to take you yet. Ask him about the cave or his boat first."
+          },
+          "success_text": "Old Lorek nods once. \"Alright then. Get in. I'll drop you at the mouth.\""
+        }
+      }
+    },
+    {
       "object_id": "barrel_of_sticks",
       "name": "barrel of sticks",
       "keywords": ["barrel", "sticks", "stick", "driftwood"],

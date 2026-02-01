@@ -1,0 +1,22 @@
+{
+  "room_id": "cave_kings_tomb",
+  "name": "King's Tomb",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "Stone steps descend into a burial chamber. A broken throne sits against the far wall. The air is stale—until bone begins to scrape against stone.",
+  "exits": {
+    "south": "cave_tomb_opening"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": ["boss_room"],
+  "spawn_groups": [
+    {
+      "spawn_id": "enc_boss_drowned_king",
+      "template_id": "drowned_king_skeleton",
+      "max_alive": 1,
+      "cooldown_seconds": 1800
+    }
+  ]
+}

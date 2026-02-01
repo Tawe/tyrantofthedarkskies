@@ -1,0 +1,43 @@
+{
+  "room_id": "cave_pit_bottom",
+  "name": "Pit Bottom",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "The pit floor is damp and cold. Old shells and silt gather here. Something slow and glossy clings to the stone.",
+  "exits": {
+    "up": {
+      "target": "cave_pit_room",
+      "skill_check": {
+        "skill": "climbing",
+        "difficulty_mod": 5,
+        "fail_stays": true,
+        "fail_text": "The wall is too slick. You slip back down."
+      }
+    }
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "rare_snail",
+      "name": "rare sea snail",
+      "keywords": ["snail", "sea snail", "rare snail"],
+      "examine_text": "A rare sea snail, its shell patterned like ink in water.",
+      "actions": {
+        "take": {
+          "gives_item": "trade_rare_sea_snail",
+          "limit_per_player": 1,
+          "empty_text": "The snail has retreated into its shell."
+        }
+      }
+    },
+    {
+      "object_id": "pit_wall",
+      "name": "pit wall",
+      "keywords": ["wall", "climb", "stone"],
+      "examine_text": "The wall is slick but climbable with effort."
+    }
+  ]
+}

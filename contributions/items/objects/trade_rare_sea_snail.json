@@ -1,0 +1,8 @@
+{
+  "item_id": "trade_rare_sea_snail",
+  "name": "Rare Sea Snail",
+  "description": "A rare sea snail prized by collectors and alchemists for its patterned shell.",
+  "item_type": "item",
+  "value": 220,
+  "stats": {}
+}

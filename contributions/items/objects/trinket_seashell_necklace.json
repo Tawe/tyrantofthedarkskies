@@ -1,0 +1,8 @@
+{
+  "item_id": "trinket_seashell_necklace",
+  "name": "Seashell Necklace",
+  "description": "A necklace strung from polished seashells. Simple, but charming.",
+  "item_type": "item",
+  "value": 75,
+  "stats": {}
+}

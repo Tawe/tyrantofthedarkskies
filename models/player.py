@@ -113,7 +113,21 @@ class Player:
         self.gift_maneuver = None  # Planet gift maneuver
         self.firebase_uid = None  # Firebase Authentication UID
         self.email = None  # Email address for Firebase Auth
-        
+        # Quest / story flags (persistent booleans keyed by flag name)
+        self.flags = {}
+
+    def get_flag(self, name):
+        """Return the value of a flag (default False if unset)."""
+        return self.flags.get(name, False)
+
+    def set_flag(self, name, value=True):
+        """Set a persistent flag (e.g. quest_sunken_cave_unlocked)."""
+        self.flags[name] = value
+
+    def has_flag(self, name):
+        """Return True if the flag is set and truthy."""
+        return bool(self.get_flag(name))
+
     def to_dict(self):
         """
         Serialize player data to dictionary.
@@ -145,7 +159,8 @@ class Player:
             "gift_maneuver": self.gift_maneuver,
             "creation_state": self.creation_state,
             "firebase_uid": self.firebase_uid,
-            "email": self.email
+            "email": self.email,
+            "flags": self.flags
             # NOTE: 'address' and 'connection' are intentionally excluded
             # They are server-only data and should never be serialized or exposed
         }
@@ -154,6 +169,8 @@ class Player:
         for key, value in data.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+        if getattr(self, "flags", None) is None:
+            self.flags = {}
                 
     def get_tier(self):
         """Get player's tier based on level"""

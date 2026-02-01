@@ -1,0 +1,35 @@
+{
+  "room_id": "cave_small_alcove",
+  "name": "Small Alcove",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "indoor",
+  "description": "A cramped alcove with a partially collapsed ceiling. Old bones lie scattered among stones worn smooth by long-vanished water.",
+  "exits": {
+    "west": "cave_watery_entry"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous", "dark"],
+  "combat_tags": [],
+  "interactables": [
+    {
+      "object_id": "bone_pile",
+      "name": "bone pile",
+      "keywords": ["bones", "bone", "pile", "remains"],
+      "examine_text": "Cracked ribs and small skull fragments. Something sharper is buried beneath.",
+      "actions": {
+        "search": {
+          "skill": "investigating",
+          "difficulty_mod": 0,
+          "limit_per_player": 1,
+          "already_done_text": "You've already taken what was useful from the bones.",
+          "success": {
+            "gives_item": "weapon_bone_hunting_knife",
+            "success_text": "Among the bones you find a sharpened bone hunting knife."
+          },
+          "fail_text": "You sift through the bones but find nothing useful."
+        }
+      }
+    }
+  ]
+}

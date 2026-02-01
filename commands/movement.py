@@ -67,10 +67,16 @@ def look_command(game, player, args):
         if overlay:
             output += f"\n\n{overlay}\n"
     
+    exits = []
     if room.exits:
-        exits = []
         for direction in room.exits.keys():
             exits.append(game.format_exit(direction))
+    for h in getattr(room, "hidden_exits", []) or []:
+        d = h.get("direction")
+        flag = h.get("reveal_flag")
+        if d and flag and getattr(player, "has_flag", lambda n: False)(flag):
+            exits.append(game.format_exit(d))
+    if exits:
         output += f"\nExits: {' '.join(exits)}"
         
     other_players = [p for p in room.players if p != player.name]
@@ -210,7 +216,7 @@ def look_npc(game, player, npc):
 
 
 def look_direction(game, player, room, direction):
-    """Look in a specific direction, respecting doors and obstacles"""
+    """Look in a specific direction, respecting locked doors, secret doors, and obstacles."""
     # Normalize direction (handle abbreviations)
     direction_map = {
         'n': 'north', 's': 'south', 'e': 'east', 'w': 'west',
@@ -218,17 +224,43 @@ def look_direction(game, player, room, direction):
         'u': 'up', 'd': 'down', 'in': 'in', 'out': 'out'
     }
     direction = direction_map.get(direction, direction)
-    
-    # Check if exit exists
-    if direction not in room.exits:
-        available = ", ".join([game.format_exit(d) for d in room.exits.keys()])
+
+    # Build visible exits (normal + revealed secrets only)
+    visible_exits = set(room.exits.keys())
+    for h in getattr(room, "hidden_exits", []) or []:
+        if h.get("reveal_flag") and getattr(player, "has_flag", lambda n: False)(h.get("reveal_flag", "")):
+            visible_exits.add(h.get("direction"))
+
+    if direction not in visible_exits:
+        available = ", ".join([game.format_exit(d) for d in sorted(visible_exits)])
         game.send_to_player(player, game.format_error(f"You cannot look {game.format_brackets(direction)}. Available directions: {available}"))
         return
-    
-    exit_data = room.exits[direction]
+
+    # Resolve exit data (normal or revealed hidden exit)
+    if direction in room.exits:
+        exit_data = room.exits[direction]
+    else:
+        for h in getattr(room, "hidden_exits", []) or []:
+            if h.get("direction") == direction:
+                exit_data = h.get("target")
+                break
+        else:
+            exit_data = None
+        if exit_data is None:
+            game.send_to_player(player, game.format_error("You cannot look that way."))
+            return
+
+    # Locked door: required_flag not set — don't show what's beyond
+    if isinstance(exit_data, dict):
+        required_flag = exit_data.get("required_flag")
+        if required_flag and not getattr(player, "has_flag", lambda n: False)(required_flag):
+            blocked = exit_data.get("blocked_text") or "Something blocks your view."
+            game.send_to_player(player, f"You look {game.format_exit(direction)}, but {blocked}")
+            return
+
     target_room_id = game.get_exit_target(exit_data)
-    door_info = game.get_exit_door(exit_data)
-    
+    door_info = game.get_exit_door(exit_data) if isinstance(exit_data, dict) else None
+
     # Check if there's a door or obstacle blocking the view
     if door_info:
         if isinstance(door_info, str):
@@ -283,21 +315,61 @@ def move_command(game, player, direction):
         game.send_to_player(player, game.format_error("You are in an unknown location."))
         return
         
-    if direction not in room.exits:
-        available_exits = ", ".join([game.format_exit(d) for d in room.exits.keys()])
+    visible_exits = set(room.exits.keys())
+    for h in getattr(room, "hidden_exits", []) or []:
+        if h.get("reveal_flag") and getattr(player, "has_flag", lambda n: False)(h.get("reveal_flag", "")):
+            visible_exits.add(h.get("direction"))
+    if direction not in visible_exits:
+        available_exits = ", ".join([game.format_exit(d) for d in sorted(visible_exits)])
         game.send_to_player(player, game.format_error(f"You cannot go {game.format_brackets(direction)}. Available exits: {available_exits}"))
         return
-        
-    old_room_id = player.room_id
-    # Handle both string and dict exit formats
-    exit_data = room.exits[direction]
+
+    if direction in room.exits:
+        exit_data = room.exits[direction]
+    else:
+        exit_data = None
+        for h in getattr(room, "hidden_exits", []) or []:
+            if h.get("direction") == direction and getattr(player, "has_flag", lambda n: False)(h.get("reveal_flag", "")):
+                exit_data = h.get("target")
+                break
+        if exit_data is None:
+            return
+    if isinstance(exit_data, str):
+        exit_data = {"target": exit_data}
+    if isinstance(exit_data, dict):
+        required_flag = exit_data.get("required_flag")
+        if required_flag and not getattr(player, "has_flag", lambda n: False)(required_flag):
+            blocked_text = exit_data.get("blocked_text") or "Something blocks the way."
+            game.send_to_player(player, blocked_text)
+            return
+
     new_room_id = game.get_exit_target(exit_data)
+    fall_damage = 0
+    fall_text = None
+
+    if isinstance(exit_data, dict) and exit_data.get("skill_check"):
+        sc = exit_data["skill_check"]
+        skill = sc.get("skill", "climbing")
+        difficulty_mod = sc.get("difficulty_mod", 0)
+        roll = player.roll_skill_check(skill, difficulty_mod)
+        success = roll["result"] in ("success", "critical")
+        player.check_skill_advancement(skill, success)
+        if not success:
+            if sc.get("fail_stays"):
+                game.send_to_player(player, sc.get("fail_text") or "You slip and don't make it.")
+                return
+            if sc.get("fail_target"):
+                new_room_id = sc["fail_target"]
+                fall_damage = sc.get("fall_damage", 0)
+                fall_text = sc.get("fall_text") or "You lose your footing and fall!"
+
+    old_room_id = player.room_id
     new_room = game.get_room(new_room_id)
-    
+
     if not new_room:
         game.send_to_player(player, game.format_error("That direction leads to an unknown place."))
         return
-    
+
     # Check if target room is a shop that's currently closed
     if game.store_hours and new_room_id in game.store_hours.store_hours:
         if not game.store_hours.is_store_open(new_room_id):
@@ -347,6 +419,12 @@ def move_command(game, player, direction):
         game.check_level_up(player)
     
     game.broadcast_to_room(old_room_id, f"{player.name} leaves {direction}.", player.name)
-    game.send_to_player(player, game.format_success(f"You move {game.format_exit(direction)}."))
+    if fall_damage:
+        if fall_text:
+            game.send_to_player(player, game.format_error(fall_text))
+        player.health = max(0, player.health - fall_damage)
+        game.send_to_player(player, f"You take {fall_damage} damage. Health: {player.health}/{player.max_health}")
+    else:
+        game.send_to_player(player, game.format_success(f"You move {game.format_exit(direction)}."))
     look_command(game, player, [])
     game.broadcast_to_room(new_room_id, f"{player.name} arrives.", player.name)
