@@ -1018,6 +1018,37 @@ that scales by tier, and offers attribute bonuses and starting skills.
         npc.pursuit_mode = behaviors.get("pursue", "short")  # for runtime create_entity_instance
         return npc
 
+    def _overlay_npcs_from_contributions(self):
+        """Overlay contribution NPC JSON onto existing NPCs (e.g. from Firebase) so merchant inventory etc. come from local files."""
+        root = os.path.dirname(os.path.abspath(__file__))
+        contributions_dir = os.path.join(root, "contributions", "npcs")
+        if not os.path.exists(contributions_dir):
+            return
+        for filename in os.listdir(contributions_dir):
+            if not filename.endswith(".json") or filename == "README.md":
+                continue
+            filepath = os.path.join(contributions_dir, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    npc_data = json.load(f)
+                npc_id = npc_data.get("npc_id")
+                if not npc_id or npc_id not in self.npcs:
+                    continue
+                npc = self.npcs[npc_id]
+                npc.from_dict(npc_data)
+                if hasattr(npc, "level") and npc.level:
+                    npc.tier = npc.get_tier()
+                if "shop_inventory" in npc_data:
+                    npc.shop_inventory = npc_data["shop_inventory"]
+                if "keywords" in npc_data:
+                    npc.keywords = npc_data["keywords"]
+                if "is_merchant" in npc_data:
+                    npc.is_merchant = npc_data["is_merchant"]
+                if "faction" in npc_data:
+                    npc.faction = npc_data["faction"]
+            except Exception as e:
+                print(f"Error overlaying NPC {filename}: {e}")
+
     def load_npcs_from_json(self):
         """Load NPCs from Firebase, contributions, or JSON files."""
         try:
@@ -1033,6 +1064,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 npc.tier = npc.get_tier()
                             self.npcs[npc.npc_id] = npc
                         print(f"Loaded {len(self.npcs)} NPCs from Firebase")
+                        self._overlay_npcs_from_contributions()
                         self._load_creatures_from_contributions()
                         return
                 except Exception as e:
