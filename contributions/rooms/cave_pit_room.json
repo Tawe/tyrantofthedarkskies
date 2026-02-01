@@ -10,7 +10,7 @@
       "target": "cave_coral_idol_chamber",
       "skill_check": {
         "skill": "climbing",
-        "difficulty_mod": 0,
+        "difficulty_mod": 15,
         "fail_target": "cave_pit_bottom",
         "fall_damage": 15,
         "fall_text": "You slip on the slick stone and plunge into the pit!"

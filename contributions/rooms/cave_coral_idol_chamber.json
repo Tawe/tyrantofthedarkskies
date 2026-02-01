@@ -33,7 +33,7 @@
       "actions": {
         "search": {
           "skill": "investigating",
-          "difficulty_mod": 0,
+          "difficulty_mod": 16,
           "success": {
             "move_to_room_id": "cave_tomb_opening",
             "success_text": "You find a hidden passage and slip through."

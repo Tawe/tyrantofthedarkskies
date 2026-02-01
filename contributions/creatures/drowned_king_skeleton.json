@@ -1,6 +1,6 @@
 {
   "template_id": "drowned_king_skeleton",
-  "name": "The Drowned King",
+  "name": "Drowned King Skeleton",
   "entity_type": "creature",
   "tier": "low",
   "level_range": [5, 5],

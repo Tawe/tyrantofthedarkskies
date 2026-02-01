@@ -4,6 +4,7 @@
   "region_id": "sunken_kings_cave",
   "weather_exposure": "indoor",
   "description": "Broken shells and cracked stone form a crude nest. The air vibrates with angry clicks, and something larger shifts in the dark.",
+  "creature_presence": "Reef crabs guard the nest; a larger brute lurks among the shells.",
   "exits": {
     "east": "cave_watery_entry",
     "north": "cave_pit_room"

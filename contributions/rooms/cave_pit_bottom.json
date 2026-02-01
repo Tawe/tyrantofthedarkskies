@@ -9,7 +9,7 @@
       "target": "cave_pit_room",
       "skill_check": {
         "skill": "climbing",
-        "difficulty_mod": 5,
+        "difficulty_mod": 10,
         "fail_stays": true,
         "fail_text": "The wall is too slick. You slip back down."
       }

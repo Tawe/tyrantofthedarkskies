@@ -83,6 +83,7 @@ def attack_command(game, player, args):
 
         # Start or join combat
         combat = game.combat_manager.get_combat_state(player.room_id)
+        was_in_combat = combat and combat.is_active and player.name in combat.combatants
         if not combat or not combat.is_active:
             # Start new combat (also sets initial target & engaged state)
             game.combat_manager.start_combat(player.room_id, player.name, player, target_display, target)
@@ -97,8 +98,9 @@ def attack_command(game, player, args):
             current_target = combatant_info.get("target")
             combatant_info["state"] = "Engaged"
 
-            # Already attacking this target → do not force another immediate attack.
-            if current_target and current_target.lower() == target_display.lower():
+            # Already attacking this target → do not process another attack (only if we were already in combat).
+            # On first attack after start_combat, target is already set; we still need to process_turn.
+            if was_in_combat and current_target and current_target.lower() == target_display.lower():
                 game.send_to_player(player, f"You are already attacking {target_display}.")
                 return
 
@@ -108,10 +110,10 @@ def attack_command(game, player, args):
                 game.send_to_player(player, f"You turn your focus to {target_display}.")
                 return
 
-            # No existing target: set and perform an initial attack (also enables autoattack).
+            # No existing target (or we just started): set and perform attack.
             combatant_info["target"] = target_display
 
-        # Process initial attack through combat system
+        # Process attack through combat system
         result = game.combat_manager.process_turn(player.room_id, player.name, "attack", {"target": target_display})
         if result:
             if result.get("success"):

@@ -240,23 +240,20 @@ class NPC:
             return 0
         return (self.attributes[attribute] - 5) // 2
     
-    def roll_skill_check(self, skill_name):
-        """Roll skill check (same as Player)"""
+    def roll_skill_check(self, skill_name, difficulty_mod=0):
+        """Roll skill check (same signature as Player; combat system passes difficulty_mod)."""
         if skill_name not in self.skills:
             base_skill = 1
         else:
             base_skill = self.skills[skill_name]
-        
-        # Get effective skill (simplified - would need full skill system)
-        effective_skill = base_skill
+        effective_skill = max(1, base_skill + difficulty_mod)
         roll = random.randint(1, 100)
-        
-        if roll <= effective_skill // 10:  # Critical (1/10th of skill)
-            return {"result": "critical", "roll": roll, "skill": effective_skill}
+        if roll <= effective_skill // 10:
+            return {"result": "critical", "roll": roll, "skill": effective_skill, "effective_skill": effective_skill}
         elif roll <= effective_skill:
-            return {"result": "success", "roll": roll, "skill": effective_skill}
+            return {"result": "success", "roll": roll, "skill": effective_skill, "effective_skill": effective_skill}
         else:
-            return {"result": "failure", "roll": roll, "skill": effective_skill}
+            return {"result": "failure", "roll": roll, "skill": effective_skill, "effective_skill": effective_skill}
         
     def to_dict(self):
         return {
@@ -458,6 +455,41 @@ class Item:
         for key, value in data.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+
+
+class _InstanceCombatTarget:
+    """Wrapper so runtime entity instances (spawned creatures) can be used as combat targets."""
+    def __init__(self, inst, template_npc):
+        self._template = template_npc
+        self._inst = inst
+        self.name = template_npc.name if template_npc else inst.get("template_id", "Unknown")
+        self.health = inst.get("hp_current", 0)
+        self.max_health = inst.get("hp_max", 10)
+        self.instance_id = inst.get("instance_id")
+        self.template_id = inst.get("template_id")
+        self.spawn_group_id = inst.get("spawn_group_id")
+        self.loot_table = getattr(template_npc, "loot_table", []) if template_npc else []
+        self.npc_id = self.instance_id
+        self.equipped = getattr(template_npc, "equipped", {}) if template_npc else {}
+
+    def get_tier(self):
+        return getattr(self._template, "get_tier", lambda: "Low")() if self._template else "Low"
+
+    def get_attribute_bonus(self, attribute):
+        return getattr(self._template, "get_attribute_bonus", lambda _: 0)(attribute) if self._template else 0
+
+    def roll_skill_check(self, skill_name, difficulty_mod=0):
+        return getattr(
+            self._template, "roll_skill_check",
+            lambda _s, _m=0: {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50}
+        )(skill_name, difficulty_mod) if self._template else {
+            "result": "success", "roll": random.randint(1, 100), "effective_skill": 50
+        }
+
+    @property
+    def exp_value(self):
+        return getattr(self._template, "exp_value", 0) if self._template else 0
+
 
 class MudGame:
     def __init__(self):
@@ -896,6 +928,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             room.hidden_exits = room_data.get("hidden_exits", [])
                             room.region_id = room_data.get("region_id") or room_data.get("zone")
                             room.weather_exposure = room_data.get("weather_exposure")
+                            room.creature_presence = room_data.get("creature_presence")
                             self.rooms[room.room_id] = room
                         print(f"Loaded {len(self.rooms)} rooms from Firebase")
                 except Exception as e:
@@ -926,6 +959,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 room.hidden_exits = room_data.get("hidden_exits", [])
                                 room.region_id = room_data.get("region_id") or room_data.get("zone")
                                 room.weather_exposure = room_data.get("weather_exposure")
+                                room.creature_presence = room_data.get("creature_presence")
                                 self.rooms[room.room_id] = room
                                 count += 1
                         except Exception as e:
@@ -2167,12 +2201,16 @@ that scales by tier, and offers attribute bonuses and starting skills.
             return
             
         output = f"\n{self.format_header(room.name)}\n{room.description}\n"
-        # Append in-world hint when spawned creatures (e.g. random encounter) are present
+        # When spawned creatures are present, append lore-friendly creature_presence from room (no creature list)
         if self.runtime_state:
-            for inst in self.runtime_state.get_entities_in_room(room.room_id):
-                if inst.get("entity_type") in ("creature", "npc"):
-                    output += "\n\nCreatures stir here.\n"
-                    break
+            has_creatures = any(
+                inst.get("entity_type") in ("creature", "npc")
+                for inst in self.runtime_state.get_entities_in_room(room.room_id)
+            )
+            if has_creatures:
+                presence = getattr(room, "creature_presence", None) or ""
+                if presence:
+                    output += f"\n\n{presence}\n"
         # Regional weather overlay (docs/weather_system.md); indoor = no overlay
         exposure = getattr(room, "weather_exposure", None) or "outdoor"
         if exposure != "indoor":
@@ -2217,20 +2255,12 @@ that scales by tier, and offers attribute bonuses and starting skills.
             scheduled_npcs = self.npc_scheduler.get_present_npcs(room.room_id, can_change_schedule)
             present_npc_ids.update(scheduled_npcs)
         
-        # NPCs here: template NPCs + runtime entity instances (spawned creatures)
+        # NPCs here: template/scheduled NPCs only (spawned creatures are described via room creature_presence)
         npcs_here = []
         for npc_id in present_npc_ids:
             npc = self.npcs.get(npc_id)
             if npc:
                 npcs_here.append(self.format_npc(npc.name))
-        if self.runtime_state:
-            for inst in self.runtime_state.get_entities_in_room(room.room_id):
-                if inst.get("entity_type") not in ("creature", "npc"):
-                    continue
-                template_id = inst.get("template_id")
-                template_npc = self.npcs.get(template_id) if template_id else None
-                name = template_npc.name if template_npc else (template_id or "Unknown")
-                npcs_here.append(self.format_npc(name))
         if npcs_here:
             output += f"\nNPCs here: {', '.join(npcs_here)}"
             
@@ -3079,7 +3109,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 target_player = p
                 break
         
-        # Check for NPC target
+        # Check for NPC target (static room.npcs)
         target_npc = None
         for npc_id in room.npcs:
             npc = self.npcs.get(npc_id)
@@ -3093,7 +3123,19 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 elif npc.is_hostile:
                     target_npc = npc
                     break
-                
+
+        # Resolve runtime entity instance (spawned creature) if no template NPC matched
+        if not target_npc and not target_player and self.runtime_state:
+            for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                if inst.get("entity_type") not in ("creature", "npc"):
+                    continue
+                template_id = inst.get("template_id")
+                template_npc = self.npcs.get(template_id) if template_id else None
+                display_name = (template_npc.name if template_npc else template_id or "").lower()
+                if target_name in display_name:
+                    target_npc = _InstanceCombatTarget(inst, template_npc)
+                    break
+
         if not target_npc and not target_player:
             self.send_to_player(player, "You don't see that target here or it's not hostile.")
             return
@@ -3125,39 +3167,37 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     else:
                         self.send_to_player(player, f"You attack {target_display} but miss!")
                     
-                    # Handle defeat and EXP
-                    if target_npc and hasattr(target_npc, 'health') and target_npc.health <= 0:
-                        # Award EXP
-                        if hasattr(target_npc, 'exp_value') and target_npc.exp_value > 0:
-                            exp_gain = target_npc.exp_value
-                        else:
-                            tier_multiplier = {"Low": 1, "Mid": 2, "High": 3, "Epic": 5}.get(target_npc.get_tier(), 1)
-                            exp_gain = 25 + (target_npc.max_health // 2) * tier_multiplier
-                        
-                        player.experience += exp_gain
-                        self.send_to_player(player, f"You gain {exp_gain} experience points!")
-                        
-                        # Handle loot
-                        if hasattr(target_npc, 'loot_table') and target_npc.loot_table:
-                            for loot_entry in target_npc.loot_table:
-                                if isinstance(loot_entry, dict):
-                                    chance = loot_entry.get("chance", 100)
-                                    if random.randint(1, 100) <= chance:
-                                        item_id = loot_entry.get("item")
-                                        if item_id:
-                                            room.items.append(item_id)
-                                            item = self.items.get(item_id)
-                                            if item:
-                                                self.broadcast_to_room(player.room_id, f"{item.name} drops from {target_npc.name}!")
-                                elif isinstance(loot_entry, str):
-                                    room.items.append(loot_entry)
-                                    item = self.items.get(loot_entry)
-                                    if item:
-                                        self.broadcast_to_room(player.room_id, f"{item.name} drops from {target_npc.name}!")
-                        
-                        # Remove NPC
-                        room.npcs.remove(target_npc.npc_id)
-                        self.check_level_up(player)
+                    # Handle defeat and EXP (only for template NPCs; runtime instances handled by _on_combat_defeated)
+                    if target_npc and hasattr(target_npc, "health") and target_npc.health <= 0:
+                        is_instance = getattr(target_npc, "instance_id", None) is not None
+                        if not is_instance:
+                            # Award EXP for template NPC
+                            if hasattr(target_npc, "exp_value") and target_npc.exp_value > 0:
+                                exp_gain = target_npc.exp_value
+                            else:
+                                tier_multiplier = {"Low": 1, "Mid": 2, "High": 3, "Epic": 5}.get(target_npc.get_tier(), 1)
+                                exp_gain = 25 + (target_npc.max_health // 2) * tier_multiplier
+                            player.experience += exp_gain
+                            self.send_to_player(player, f"You gain {exp_gain} experience points!")
+                            # Handle loot
+                            if hasattr(target_npc, "loot_table") and target_npc.loot_table:
+                                for loot_entry in target_npc.loot_table:
+                                    if isinstance(loot_entry, dict):
+                                        chance = loot_entry.get("chance", 100)
+                                        if random.randint(1, 100) <= chance:
+                                            item_id = loot_entry.get("item")
+                                            if item_id:
+                                                room.items.append(item_id)
+                                                item = self.items.get(item_id)
+                                                if item:
+                                                    self.broadcast_to_room(player.room_id, f"{item.name} drops from {target_npc.name}!")
+                                    elif isinstance(loot_entry, str):
+                                        room.items.append(loot_entry)
+                                        item = self.items.get(loot_entry)
+                                        if item:
+                                            self.broadcast_to_room(player.room_id, f"{item.name} drops from {target_npc.name}!")
+                            room.npcs.remove(target_npc.npc_id)
+                            self.check_level_up(player)
                 else:
                     self.send_to_player(player, result.get("message", "Attack failed"))
             return
@@ -4015,8 +4055,16 @@ that scales by tier, and offers attribute bonuses and starting skills.
                         self.send_to_player(player, f"Cost depends on the damage. I can fix most basic gear.")
                 
                 return
-        
-        # No keyword match
+
+        # No keyword match — if they only said the rest of the NPC's name (e.g. "talk old lorek"), show greeting
+        if keyword and keyword in npc.name.lower():
+            if hasattr(npc, 'dialogue') and npc.dialogue:
+                greeting = npc.dialogue[0] if npc.dialogue else f"{npc.name} looks at you expectantly."
+                self.send_to_player(player, f"{npc.name} says: \"{greeting}\"")
+            else:
+                self.send_to_player(player, f"{npc.name} looks at you expectantly.")
+            return
+
         self.send_to_player(player, f"{npc.name} doesn't seem to respond to that.")
     
     def shop_list_command(self, player, args):

@@ -54,12 +54,16 @@ def look_command(game, player, args):
         return
         
     output = f"\n{game.format_header(room.name)}\n{room.description}\n"
-    # Append in-world hint when spawned creatures (e.g. random encounter) are present
-    if getattr(game, 'runtime_state', None):
-        for inst in game.runtime_state.get_entities_in_room(room.room_id):
-            if inst.get("entity_type") in ("creature", "npc"):
-                output += "\n\nCreatures stir here.\n"
-                break
+    # When spawned creatures are present, append lore-friendly creature_presence from room (no creature list)
+    if getattr(game, "runtime_state", None):
+        has_creatures = any(
+            inst.get("entity_type") in ("creature", "npc")
+            for inst in game.runtime_state.get_entities_in_room(room.room_id)
+        )
+        if has_creatures:
+            presence = getattr(room, "creature_presence", None) or ""
+            if presence:
+                output += f"\n\n{presence}\n"
     # Regional weather overlay (docs/weather_system.md); indoor = no overlay
     exposure = getattr(room, "weather_exposure", None) or "outdoor"
     if exposure != "indoor" and getattr(game, "get_weather_overlay", None):

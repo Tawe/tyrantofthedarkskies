@@ -4,6 +4,7 @@
   "region_id": "sunken_kings_cave",
   "weather_exposure": "indoor",
   "description": "Stone steps descend into a burial chamber. A broken throne sits against the far wall. The air is stale—until bone begins to scrape against stone.",
+  "creature_presence": "The drowned king's skeleton stirs, bones scraping stone as it rises.",
   "exits": {
     "south": "cave_tomb_opening"
   },

@@ -2,6 +2,7 @@
   "room_id": "kelp_plains",
   "name": "Kelp Plains",
   "description": "Vast fields of hardened kelp fronds that wave in the wind like a sea of green. The kelp has been preserved and hardened by some unknown process, creating a surreal landscape. The plains stretch as far as you can see, and the wind creates an eerie rustling sound.",
+  "creature_presence": "Among the fronds, kelp fleas hop and skitter.",
   "exits": {
     "north": "unflooded_sea",
     "south": "buried_ruins"

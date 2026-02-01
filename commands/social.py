@@ -163,6 +163,14 @@ def talk_command(game, player, args):
                     game.send_to_player(player, f"Cost depends on the damage. I can fix most basic gear.")
             
             return
-    
-    # No keyword match
+
+    # No keyword match — if they only said the rest of the NPC's name (e.g. "talk old lorek"), show greeting
+    if keyword and keyword in npc.name.lower():
+        if hasattr(npc, 'dialogue') and npc.dialogue:
+            greeting = npc.dialogue[0] if npc.dialogue else f"{npc.name} looks at you expectantly."
+            game.send_to_player(player, f"{npc.name} says: \"{greeting}\"")
+        else:
+            game.send_to_player(player, f"{npc.name} looks at you expectantly.")
+        return
+
     game.send_to_player(player, f"{npc.name} doesn't seem to respond to that.")

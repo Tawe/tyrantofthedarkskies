@@ -3,7 +3,8 @@
   "name": "Old Lorek",
   "description": "An old fisherman with a salt-crusted beard sits near the edge of the docks, staring out toward the open sea. His small skiff rocks gently beside him.",
   "schedule": [
-    { "start": "06:00", "end": "11:00", "room_id": "docks" }
+    { "start": "00:00", "end": "12:00", "room_id": "docks" },
+    { "start": "12:00", "end": "23:59", "room_id": "docks" }
   ],
   "health": 50,
   "max_health": 50,

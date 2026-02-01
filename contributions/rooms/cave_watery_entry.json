@@ -4,6 +4,7 @@
   "region_id": "sunken_kings_cave",
   "weather_exposure": "sheltered",
   "description": "Shallow pools of salt water dot the cave floor. The stone is slick, and faint skittering echoes from the dark. Broken shell fragments crunch underfoot.",
+  "creature_presence": "Among the wet rocks, reef crabs click and scuttle.",
   "exits": {
     "west": "cave_nest",
     "north": "cave_drawings",
