@@ -1,7 +1,7 @@
 {
   "room_id": "black_anchor_guild",
   "name": "The Black Anchor - Guild Board Alcove",
-  "description": "This quieter alcove has been reinforced with iron brackets and thick planks. A large notice board dominates the far wall, covered in contracts, bounties, and expedition postings. Wax-sealed letters and official notices suggest interest from nobles, merchants, and distant powers. A narrow desk sits nearby where guild business is recorded, its ink stained by constant use.",
+  "description": "This reinforced alcove sits just beyond the noise of the common room. Thick planks and iron brackets muffle the din, leaving only a low hum of voices behind you.\n\nA large notice board dominates the far wall, layered with contracts, bounties, and expedition postings. Some are freshly nailed; others curl at the edges, ignored or forgotten. Wax-sealed letters and stamped notices hint at interest from merchants, nobles, and powers far beyond New Cove.\n\nA narrow desk nearby is stained with ink and wax, its ledgers opened and closed countless times.",
   "exits": {
     "east": "black_anchor_common",
     "west": "black_anchor_booths"
@@ -11,6 +11,16 @@
   ],
   "npcs": [
     "guild_clerk"
+  ],
+  "ambient_lines": [
+    "The guild clerk shuffles papers at the desk, muttering under his breath.",
+    "A notice comes loose from the board and flutters to the floor.",
+    "Someone's footsteps recede toward the common room.",
+    "Wax cracks as a sealed letter is pressed into the board."
+  ],
+  "enter_flavor": [
+    "The guild clerk looks up from the ledgers as you approach the board.",
+    "The guild clerk mutters as you approach the board."
   ],
   "flags": [
     "safe",

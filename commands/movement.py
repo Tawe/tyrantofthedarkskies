@@ -439,3 +439,5 @@ def move_command(game, player, direction):
         game.send_to_player(player, game.format_success(f"You move {game.format_exit(direction)}."))
     look_command(game, player, [])
     game.broadcast_to_room(new_room_id, f"{player.name} arrives.", player.name)
+    if hasattr(game, "_emit_room_enter_ambient"):
+        game._emit_room_enter_ambient(new_room_id, new_room, player)

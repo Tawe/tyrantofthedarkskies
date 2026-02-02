@@ -140,6 +140,17 @@ Directional Hinting
 
 ⸻
 
+Ambient Life (Social Hubs)
+
+To make hubs like The Black Anchor feel lived-in without new commands:
+
+- **ambient_lines**: Optional array of strings. When someone enters the room, one line is broadcast to everyone in the room (e.g. "A burst of laughter erupts from a table near the hearth before quickly dying down."). Use rotating, non-interactive text so the space feels occupied.
+- **enter_flavor**: Optional array of strings. When a player enters, one line is sent only to that player (e.g. "Innkeeper Bram glances up when you enter."). Use for light NPC acknowledgment that the player exists in the space.
+
+No mechanical complexity — just timed text on enter. See `contributions/rooms/new_cove_town/black_anchor_common.json` for examples.
+
+⸻
+
 Quick Checklist for Every Room
 	•	Does the room description hint at each direction without spoilers?
 	•	Are exits listed without naming unseen locations?

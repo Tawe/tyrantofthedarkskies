@@ -1,7 +1,7 @@
 {
   "room_id": "black_anchor_booths",
   "name": "The Black Anchor - Back Booths",
-  "description": "Low wooden booths line the walls of this dim back room, each partially shielded by hanging canvas and old sailcloth. Conversations here are quieter and more deliberate. You catch fragments of talk about lost ruins, dangerous routes, and opportunities that never make it onto the guild board.",
+  "description": "Low wooden booths line the walls of this dim back room, each half-hidden behind hanging canvas and old sailcloth. The air here is quieter, heavier with intent.\n\nConversations are kept low and deliberate. You catch fragments — lost routes, ruined places, opportunities that never make it to the guild board. Eyes linger longer here, measuring who might be listening.\n\nThe warmth of the common room fades behind you.",
   "exits": {
     "east": "black_anchor_guild"
   },
@@ -9,6 +9,16 @@
   "npcs": [
     "hooded_patron",
     "magitium_agent"
+  ],
+  "ambient_lines": [
+    "A low conversation in the far booth stops, then resumes in quieter tones.",
+    "Canvas sways as someone shifts in the shadows.",
+    "The scrape of a chair; someone stands and moves toward the alcove.",
+    "You catch a fragment: \"…never made it past the reef.\""
+  ],
+  "enter_flavor": [
+    "A hooded patron falls silent mid-sentence when you get too close.",
+    "Eyes turn your way, then drift back to private business."
   ],
   "flags": [
     "safe",

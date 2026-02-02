@@ -1,7 +1,7 @@
 {
   "room_id": "black_anchor_common",
   "name": "The Black Anchor - Common Room",
-  "description": "A squat, weather-beaten tavern built from dark driftwood and iron fittings reclaimed from wrecked ships. The smell of salt, ale, and wet rope fills the air. Lanterns sway constantly, even when there is no wind. A heavy door to the east opens directly onto the docks, and the low murmur of sailors mixes with the scrape of chairs on warped planks. This is the heart of New Cove's only entertainment spot—and the front face of the Adventurers' Guild Hall.",
+  "description": "A squat, weather-beaten tavern built from dark driftwood and iron fittings reclaimed from wrecked ships. The smell of salt, ale, and wet rope hangs thick in the air. Lanterns sway gently from iron hooks, their light catching on scarred tabletops and warped planks.\n\nSailors crowd the central tables, voices rising and falling with the tide of drink. Near the bar, the scrape of chairs and the clink of mugs never quite stops. To one side, the tavern grows quieter, where notices and contracts draw more serious attention. Behind you, a heavy door opens toward daylight and the sound of the docks. Another leads out toward the town beyond.",
   "exits": {
     "north": {
       "target": "new_cove_square",
@@ -14,7 +14,7 @@
       "target": "docks",
       "door": {
         "name": "a heavy wooden door",
-        "description": "The door is closed, blocking your view of the town square beyond."
+        "description": "The door is closed, blocking your view of the docks beyond."
       }
     },
     "west": "black_anchor_guild"
@@ -23,6 +23,17 @@
   "npcs": [
     "innkeeper_bram",
     "weathered_sailor"
+  ],
+  "ambient_lines": [
+    "A burst of laughter erupts from a table near the hearth before quickly dying down.",
+    "Someone slams a mug on the counter, demanding a refill.",
+    "A gust from the docks rattles the door, carrying the smell of salt and tar.",
+    "A sailor leans in and mutters something to his companion; the other shakes his head.",
+    "The fire crackles as a fresh log is tossed onto the grate."
+  ],
+  "enter_flavor": [
+    "Innkeeper Bram glances up when you enter.",
+    "The weathered sailor by the bar turns his head slightly as you step inside."
   ],
   "flags": [
     "safe",
