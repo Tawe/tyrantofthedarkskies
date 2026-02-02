@@ -315,6 +315,9 @@ class Item:
         self.item_type = item_type  # weapon, armor, consumable, item
         self.value = 0
         self.stats = {}
+        # Consumables (docs/food_healing_system.md)
+        self.food_effect = None  # { name, hp_per_tick, tick_interval_minutes, duration_minutes }
+        self.potion_heal = None  # [min, max] HP or single number
         
         # Weapon-specific properties
         self.weapon_template_id = None  # Reference to weapons.json template
@@ -3575,6 +3578,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if self.world_time:
             player.shaken_until = self.world_time.get_world_seconds() + 600
         
+        # Clear food and potion effects (docs/food_healing_system.md)
+        player.food_regen = None
+        player.potion_sickness_until = None
+        
         # Clear combat state
         player.active_maneuvers = getattr(player, "active_maneuvers", []) or []
     
@@ -3603,6 +3610,89 @@ that scales by tier, and offers attribute bonuses and starting skills.
         else:
             self.look_command(player, [])
         self.broadcast_to_room(player.room_id, f"{player.name} appears, looking wounded.", player.name)
+
+    def _tick_regen(self):
+        """Apply natural regen (+1 HP / 10 in-game min) and food regen ticks (docs/food_healing_system.md)."""
+        if not self.world_time:
+            return
+        now_world = self.world_time.get_world_seconds()
+        with self.player_lock:
+            for player_name, player in list(self.players.items()):
+                if not getattr(player, "is_logged_in", True):
+                    continue
+                # Natural regen: +1 HP every 10 in-game minutes
+                last_nat = getattr(player, "last_natural_regen_world_sec", None)
+                if last_nat is None:
+                    last_nat = now_world
+                    player.last_natural_regen_world_sec = last_nat
+                if now_world - last_nat >= 600 and player.health < player.max_health:
+                    player.health = min(player.max_health, player.health + 1)
+                    player.last_natural_regen_world_sec = now_world
+                    self.send_to_player(player, "You regain a small amount of health.")
+                # Food regen: tick if effect active and interval passed, and not at full HP
+                food = getattr(player, "food_regen", None) or {}
+                if food and food.get("expires_at_world_sec", 0) > now_world:
+                    if player.health < player.max_health:
+                        last_tick = food.get("last_tick_world_sec") or now_world
+                        interval = food.get("tick_interval_world_sec", 120)
+                        if now_world - last_tick >= interval:
+                            hp = min(food.get("hp_per_tick", 1), player.max_health - player.health)
+                            if hp > 0:
+                                player.health += hp
+                                food["last_tick_world_sec"] = now_world
+                                player.food_regen = food
+                                self.send_to_player(player, "You regain a small amount of health.")
+                elif food and food.get("expires_at_world_sec", 0) <= now_world:
+                    player.food_regen = None
+    
+    def _use_consumable(self, player, item_id, item):
+        """Handle food (regen over time) or potion (instant heal + sickness). Returns True if consumed and item removed."""
+        if getattr(item, "food_effect", None):
+            # Food: one effect at a time; eating again refreshes duration (docs/food_healing_system.md)
+            effect = item.food_effect
+            if not isinstance(effect, dict):
+                return False
+            name = effect.get("name", "Well Fed")
+            hp_per_tick = max(1, int(effect.get("hp_per_tick", 1)))
+            tick_min = max(1, int(effect.get("tick_interval_minutes", 2)))
+            dur_min = max(1, int(effect.get("duration_minutes", 20)))
+            if not self.world_time:
+                return False
+            now = self.world_time.get_world_seconds()
+            tick_sec = tick_min * 60
+            expires_at = now + dur_min * 60
+            player.food_regen = {
+                "name": name,
+                "hp_per_tick": hp_per_tick,
+                "tick_interval_world_sec": tick_sec,
+                "expires_at_world_sec": expires_at,
+                "last_tick_world_sec": now,
+            }
+            if item_id in player.inventory:
+                player.inventory.remove(item_id)
+            self.send_to_player(player, f"You eat the {item.name}. You feel steadier.")
+            return True
+        # Potion: instant heal + 30s potion sickness
+        potion_heal = getattr(item, "potion_heal", None)
+        if not potion_heal and (item_id == "potion" or "potion" in (item_id or "").lower()):
+            potion_heal = [20, 30]
+        if potion_heal:
+            now_real = time.time()
+            if getattr(player, "potion_sickness_until", 0) and now_real < player.potion_sickness_until:
+                self.send_to_player(player, "You are still feeling the effects of the last potion.")
+                return False
+            if isinstance(potion_heal, (list, tuple)) and len(potion_heal) >= 2:
+                heal_amount = random.randint(int(potion_heal[0]), int(potion_heal[1]))
+            else:
+                heal_amount = int(potion_heal) if isinstance(potion_heal, (int, float)) else item.stats.get("heal", 25)
+            player.health = min(player.max_health, player.health + heal_amount)
+            player.potion_sickness_until = now_real + 30
+            if item_id in player.inventory:
+                player.inventory.remove(item_id)
+            self.send_to_player(player, "Warmth floods your chest as the potion takes effect.")
+            self.broadcast_to_room(player.room_id, f"{player.name} drinks a health potion.", player.name)
+            return True
+        return False
     
     def join_combat_command(self, player, args):
         """Join an existing combat in the room"""
@@ -4931,14 +5021,10 @@ Maneuvers: {len(player.active_maneuvers)}/{player.get_max_maneuvers()} active"""
             item = self.items.get(item_id)
             if item and item_name in item.name.lower():
                 if item.item_type == "consumable":
-                    if item.item_id == "potion":
-                        heal_amount = 30
-                        player.health = min(player.max_health, player.health + heal_amount)
-                        player.inventory.remove(item_id)
-                        self.send_to_player(player, f"You drink the potion and heal {heal_amount} health.")
-                        self.broadcast_to_room(player.room_id, 
-                                              f"{player.name} drinks a health potion.", player.name)
+                    if self._use_consumable(player, item_id, item):
                         return
+                    # _use_consumable returned False (e.g. potion sickness) - don't remove item
+                    return
                 else:
                     self.send_to_player(player, "You can't use that item.")
                     return
@@ -6622,6 +6708,20 @@ First, choose your race (affects attributes and starting skills):
                 # Start combat tick task if combat manager is available
                 if self.combat_manager:
                     self.combat_manager._ensure_combat_tick_task()
+                
+                # Regen tick: natural + food healing every 15s (docs/food_healing_system.md)
+                async def regen_tick_loop():
+                    while True:
+                        await asyncio.sleep(15)
+                        try:
+                            loop = asyncio.get_running_loop()
+                            if self.ws_executor:
+                                await loop.run_in_executor(self.ws_executor, self._tick_regen)
+                        except asyncio.CancelledError:
+                            break
+                        except Exception as e:
+                            print(f"Error in regen tick: {e}")
+                asyncio.get_running_loop().create_task(regen_tick_loop())
                 
                 await asyncio.Future()  # Run forever
         

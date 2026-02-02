@@ -4,5 +4,11 @@
   "description": "Basic rations to sustain you for three days of travel.",
   "item_type": "consumable",
   "value": 20,
-  "stats": {}
+  "stats": {},
+  "food_effect": {
+    "name": "Well Fed",
+    "hp_per_tick": 1,
+    "tick_interval_minutes": 2,
+    "duration_minutes": 20
+  }
 }

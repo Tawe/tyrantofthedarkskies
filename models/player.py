@@ -117,6 +117,10 @@ class Player:
         self.flags = {}
         # Death recovery: Shaken debuff (world_seconds until it wears off; docs/death.md)
         self.shaken_until = None
+        # Food & healing (docs/food_healing_system.md)
+        self.last_natural_regen_world_sec = None  # world_seconds when we last applied +1 HP natural regen
+        self.food_regen = None  # { "name", "hp_per_tick", "tick_interval_world_sec", "expires_at_world_sec", "last_tick_world_sec" } or None
+        self.potion_sickness_until = None  # real-time timestamp; cannot drink another potion until after
 
     def get_flag(self, name):
         """Return the value of a flag (default False if unset)."""
@@ -163,7 +167,10 @@ class Player:
             "firebase_uid": self.firebase_uid,
             "email": self.email,
             "flags": self.flags,
-            "shaken_until": getattr(self, "shaken_until", None)
+            "shaken_until": getattr(self, "shaken_until", None),
+            "last_natural_regen_world_sec": getattr(self, "last_natural_regen_world_sec", None),
+            "food_regen": getattr(self, "food_regen", None),
+            "potion_sickness_until": getattr(self, "potion_sickness_until", None)
             # NOTE: 'address' and 'connection' are intentionally excluded
             # They are server-only data and should never be serialized or exposed
         }

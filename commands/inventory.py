@@ -94,14 +94,9 @@ def use_command(game, player, args):
         item = game.items.get(item_id)
         if item and item_name in item.name.lower():
             if item.item_type == "consumable":
-                if item.item_id == "potion":
-                    heal_amount = 30
-                    player.health = min(player.max_health, player.health + heal_amount)
-                    player.inventory.remove(item_id)
-                    game.send_to_player(player, f"You drink the potion and heal {heal_amount} health.")
-                    game.broadcast_to_room(player.room_id, 
-                                          f"{player.name} drinks a health potion.", player.name)
+                if hasattr(game, "_use_consumable") and game._use_consumable(player, item_id, item):
                     return
+                return
             else:
                 game.send_to_player(player, "You can't use that item.")
                 return

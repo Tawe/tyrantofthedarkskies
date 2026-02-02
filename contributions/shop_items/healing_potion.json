@@ -6,5 +6,6 @@
   "value": 50,
   "stats": {
     "heal": 25
-  }
+  },
+  "potion_heal": [20, 30]
 }

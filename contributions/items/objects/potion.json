@@ -4,5 +4,6 @@
   "description": "A small red potion that restores health.",
   "item_type": "consumable",
   "value": 10,
-  "stats": {}
+  "stats": {},
+  "potion_heal": [20, 30]
 }
