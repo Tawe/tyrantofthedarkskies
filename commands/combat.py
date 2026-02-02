@@ -180,7 +180,8 @@ def attack_command(game, player, args):
     
     # DEFENSE MODEL: Accuracy (Fighting) vs Dodging contest
     # Attacker rolls Accuracy (Fighting skill)
-    accuracy_check = player.roll_skill_check("fighting")
+    shaken = getattr(game, "_skill_check_modifier", lambda p: 0)(player)
+    accuracy_check = player.roll_skill_check("fighting", shaken_mod=shaken)
     attacker_effective = accuracy_check.get("effective_skill", 50)
     attacker_roll = accuracy_check.get("roll", random.randint(1, 100))
     
@@ -376,32 +377,9 @@ def attack_command(game, player, args):
             
             if player.health <= 0:
                 player.health = 0
-                game.send_to_player(player, "You have been defeated! You respawn at The Black Anchor - Common Room.")
-                game.broadcast_to_room(player.room_id, 
-                                      f"{player.name} has been defeated!", player.name)
-                respawn_player(game, player)
+                game.handle_player_defeat(player)
         else:
             game.send_to_player(player, f"{target_npc.name} attacks but misses!")
-
-
-def respawn_player(game, player):
-    """Respawn a defeated player."""
-    old_room = game.get_room(player.room_id)
-    if old_room:
-        old_room.players.discard(player.name)
-        
-    player.room_id = "black_anchor_common"
-    player.health = player.max_health // 2
-    
-    new_room = game.get_room(player.room_id)
-    if new_room:
-        new_room.players.add(player.name)
-        
-        game.send_to_player(player, "You respawn at The Black Anchor - Common Room with half health.")
-    # Import look_command to avoid circular dependency
-    from .movement import look_command
-    look_command(game, player, [])
-    game.broadcast_to_room(player.room_id, f"{player.name} appears, looking wounded.", player.name)
 
 
 def join_combat_command(game, player, args):

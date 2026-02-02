@@ -2612,7 +2612,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
             sc = exit_data["skill_check"]
             skill = sc.get("skill", "climbing")
             difficulty_mod = sc.get("difficulty_mod", 0)
-            roll = player.roll_skill_check(skill, difficulty_mod)
+            roll = player.roll_skill_check(skill, difficulty_mod + self._skill_check_modifier(player))
             success = roll["result"] in ("success", "critical")
             player.check_skill_advancement(skill, success)
             if not success:
@@ -2692,6 +2692,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 self.send_to_player(player, self.format_error(fall_text))
             player.health = max(0, player.health - fall_damage)
             self.send_to_player(player, f"You take {fall_damage} damage. Health: {player.health}/{player.max_health}")
+            if player.health <= 0:
+                self.handle_player_defeat(player, "You succumb to your injuries from the fall.")
+                return
         else:
             self.send_to_player(player, self.format_success(f"You move {self.format_exit(direction)}."))
         if COMMANDS_AVAILABLE:
@@ -2889,7 +2892,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
             return
         skill = search_cfg.get("skill", "investigating")
         difficulty_mod = search_cfg.get("difficulty_mod", 0)
-        result = player.roll_skill_check(skill, difficulty_mod)
+        result = player.roll_skill_check(skill, difficulty_mod + self._skill_check_modifier(player))
         success = result.get("result") in ("success", "critical")
         player.check_skill_advancement(skill, success)
         if success:
@@ -3124,7 +3127,13 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 self.send_to_player(player, "No other players are online.")
 
     def _on_combat_defeated(self, room_id, target_name, target_entity, attacker_name):
-        """B2: When a combatant is defeated, remove runtime instance and create loot if applicable."""
+        """B2: When a combatant is defeated. If player, run death flow (docs/death.md); else remove NPC and loot."""
+        if hasattr(target_entity, "connection") or (target_name and self.get_player(target_name)):
+            player = target_entity if hasattr(target_entity, "connection") else self.get_player(target_name)
+            if player:
+                player.health = 0
+                self.handle_player_defeat(player)
+            return
         instance_id = getattr(target_entity, "instance_id", None)
         if not instance_id or not self.runtime_state:
             return
@@ -3298,7 +3307,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         
         # DEFENSE MODEL: Accuracy (Fighting) vs Dodging contest
         # Attacker rolls Accuracy (Fighting skill)
-        accuracy_check = player.roll_skill_check("fighting")
+        accuracy_check = player.roll_skill_check("fighting", shaken_mod=self._skill_check_modifier(player))
         attacker_effective = accuracy_check.get("effective_skill", 50)
         attacker_roll = accuracy_check.get("roll", random.randint(1, 100))
         
@@ -3496,26 +3505,99 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 
                 if player.health <= 0:
                     player.health = 0
-                    self.send_to_player(player, "You have been defeated! You respawn at The Black Anchor - Common Room.")
-                    self.broadcast_to_room(player.room_id, 
-                                          f"{player.name} has been defeated!", player.name)
-                    self.respawn_player(player)
+                    self.handle_player_defeat(player)
             else:
                 self.send_to_player(player, f"{target_npc.name} attacks but misses!")
-                
-    def respawn_player(self, player):
+    
+    # Death & recovery (docs/death.md): safe anchor, time loss, equipment wear, Shaken
+    DEFAULT_DEATH_RECOVERY_ROOM = "temple_lumeris"
+    
+    def _skill_check_modifier(self, player):
+        """Shaken debuff: -1 to all skill checks until shaken_until (world_seconds)."""
+        if not getattr(player, "shaken_until", None) or not self.world_time:
+            return 0
+        if self.world_time.get_world_seconds() < player.shaken_until:
+            return -1
+        return 0
+    
+    def _apply_death_equipment_wear(self, player):
+        """Equipped items lose durability on death; heavier armor degrades more (docs/death.md)."""
+        for slot, item_id in list(getattr(player, "equipped", {}).items()):
+            item = self.items.get(item_id) if self.items else None
+            if not item:
+                continue
+            if getattr(item, "reduce_durability", None):
+                if getattr(item, "is_armor", lambda: False)():
+                    weight = 1
+                    if getattr(item, "armor_type", None) == "medium":
+                        weight = 2
+                    elif getattr(item, "armor_type", None) == "heavy":
+                        weight = 3
+                    for _ in range(weight):
+                        item.reduce_durability(1)
+                else:
+                    item.reduce_durability(1)
+            elif getattr(item, "reduce_armor_hp", None):
+                amt = 2 if getattr(item, "armor_type", None) in ("medium", "heavy") else 1
+                item.reduce_armor_hp(amt)
+    
+    def _recover_player_from_death(self, player):
+        """Move to safe anchor, restore HP 25–40%, advance time 2–6h, wear gear, apply Shaken (docs/death.md)."""
         old_room = self.get_room(player.room_id)
         if old_room:
             old_room.players.discard(player.name)
-            
-        player.room_id = "black_anchor_common"
-        player.health = player.max_health // 2
         
-        new_room = self.get_room(player.room_id)
-        if new_room:
-            new_room.players.add(player.name)
-            
-            self.send_to_player(player, "You respawn at The Black Anchor - Common Room with half health.")
+        recovery_room_id = self.DEFAULT_DEATH_RECOVERY_ROOM
+        recovery_room = self.get_room(recovery_room_id)
+        if not recovery_room:
+            recovery_room_id = "black_anchor_common"
+            recovery_room = self.get_room(recovery_room_id)
+        
+        player.room_id = recovery_room_id
+        if recovery_room:
+            recovery_room.players.add(player.name)
+        
+        # HP 25–40%
+        pct = random.uniform(0.25, 0.40)
+        player.health = max(1, int(player.max_health * pct))
+        
+        # Time loss: 2–6 in-game hours
+        if self.world_time:
+            hours_lost = random.randint(2, 6)
+            self.world_time.set_world_seconds(
+                self.world_time.get_world_seconds() + hours_lost * 3600
+            )
+            self.save_world_time()
+        
+        self._apply_death_equipment_wear(player)
+        
+        # Shaken: −1 to all skill checks for 10 in-game minutes
+        if self.world_time:
+            player.shaken_until = self.world_time.get_world_seconds() + 600
+        
+        # Clear combat state
+        player.active_maneuvers = getattr(player, "active_maneuvers", []) or []
+    
+    def handle_player_defeat(self, player, cause_message=None):
+        """Death flow per docs/death.md: message, remove from combat, brief death state, recover at anchor."""
+        room_id = player.room_id
+        combat = self.combat_manager.get_combat_state(room_id) if self.combat_manager else None
+        if combat and combat.is_active and player.name in combat.combatants:
+            combat.remove_combatant(player.name)
+            if len(combat.combatants) < 2:
+                self.combat_manager.end_combat(room_id)
+            self.broadcast_to_room(room_id, f"{player.name} has been defeated!", player.name)
+        
+        self.send_to_player(player, "Your vision darkens as your strength fails.")
+        if cause_message:
+            self.send_to_player(player, cause_message)
+        self.send_to_player(player, "Cold spreads through your limbs.")
+        self.send_to_player(player, "The world slips away.")
+        
+        self._recover_player_from_death(player)
+        
+        room_name = (self.get_room(player.room_id) or type("R", (), {"name": "a safe place"})).name
+        self.send_to_player(player, f"You awaken at {room_name}, bruised but alive. Your wounds have been tended; time has passed.")
         if COMMANDS_AVAILABLE:
             look_command(self, player, [])
         else:
@@ -6322,6 +6404,12 @@ First, choose your race (affects attributes and starting skills):
                     self.send_to_player(player, welcome_back.rstrip())
                     
                     player.max_maneuvers = player.get_max_maneuvers()
+                    
+                    # Logging out while defeated: recover immediately on next login (docs/death.md)
+                    if getattr(player, "health", 1) <= 0:
+                        self._recover_player_from_death(player)
+                        r = self.get_room(player.room_id)
+                        self.send_to_player(player, f"You awaken at {r.name if r else 'a safe place'}, having been tended.")
                     
                     room = self.get_room(player.room_id)
                     if room:

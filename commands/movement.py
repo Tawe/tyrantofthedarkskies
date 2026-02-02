@@ -362,7 +362,8 @@ def move_command(game, player, direction):
         sc = exit_data["skill_check"]
         skill = sc.get("skill", "climbing")
         difficulty_mod = sc.get("difficulty_mod", 0)
-        roll = player.roll_skill_check(skill, difficulty_mod)
+        shaken = getattr(game, "_skill_check_modifier", lambda p: 0)(player)
+        roll = player.roll_skill_check(skill, difficulty_mod + shaken)
         success = roll["result"] in ("success", "critical")
         player.check_skill_advancement(skill, success)
         if not success:
@@ -435,6 +436,9 @@ def move_command(game, player, direction):
             game.send_to_player(player, game.format_error(fall_text))
         player.health = max(0, player.health - fall_damage)
         game.send_to_player(player, f"You take {fall_damage} damage. Health: {player.health}/{player.max_health}")
+        if player.health <= 0:
+            game.handle_player_defeat(player, "You succumb to your injuries from the fall.")
+            return
     else:
         game.send_to_player(player, game.format_success(f"You move {game.format_exit(direction)}."))
     look_command(game, player, [])

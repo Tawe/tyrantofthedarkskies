@@ -115,6 +115,8 @@ class Player:
         self.email = None  # Email address for Firebase Auth
         # Quest / story flags (persistent booleans keyed by flag name)
         self.flags = {}
+        # Death recovery: Shaken debuff (world_seconds until it wears off; docs/death.md)
+        self.shaken_until = None
 
     def get_flag(self, name):
         """Return the value of a flag (default False if unset)."""
@@ -160,7 +162,8 @@ class Player:
             "creation_state": self.creation_state,
             "firebase_uid": self.firebase_uid,
             "email": self.email,
-            "flags": self.flags
+            "flags": self.flags,
+            "shaken_until": getattr(self, "shaken_until", None)
             # NOTE: 'address' and 'connection' are intentionally excluded
             # They are server-only data and should never be serialized or exposed
         }
@@ -222,9 +225,9 @@ class Player:
         
         return max(0, base_skill)
         
-    def roll_skill_check(self, skill_name, difficulty_mod=0):
-        """Perform unified d100 skill check"""
-        effective_skill = self.get_effective_skill(skill_name, difficulty_mod)
+    def roll_skill_check(self, skill_name, difficulty_mod=0, shaken_mod=0):
+        """Perform unified d100 skill check. shaken_mod: -1 when Shaken (death recovery)."""
+        effective_skill = self.get_effective_skill(skill_name, difficulty_mod + shaken_mod)
         roll = random.randint(1, 100)
         
         # Determine degrees of success
