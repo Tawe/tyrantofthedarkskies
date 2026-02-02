@@ -72,14 +72,21 @@ def look_command(game, player, args):
             output += f"\n\n{overlay}\n"
     
     exits = []
+    exit_hints = getattr(room, "exit_hints", None) or {}
     if room.exits:
         for direction in room.exits.keys():
-            exits.append(game.format_exit(direction))
+            part = game.format_exit(direction)
+            if exit_hints.get(direction):
+                part += f" ({exit_hints.get(direction)})"
+            exits.append(part)
     for h in getattr(room, "hidden_exits", []) or []:
         d = h.get("direction")
         flag = h.get("reveal_flag")
         if d and flag and getattr(player, "has_flag", lambda n: False)(flag):
-            exits.append(game.format_exit(d))
+            part = game.format_exit(d)
+            if exit_hints.get(d):
+                part += f" ({exit_hints.get(d)})"
+            exits.append(part)
     if exits:
         output += f"\nExits: {' '.join(exits)}"
         

@@ -3,7 +3,7 @@
   "name": "Tomb Opening",
   "region_id": "sunken_kings_cave",
   "weather_exposure": "indoor",
-  "description": "The rough cave walls smooth into worked stone. A fitted stone wall blocks the way, a circular hollow set at its center like a missing keystone.",
+  "description": "The rough cave walls smooth into worked stone. A fitted stone wall blocks the way, a circular hollow set at its center like a missing keystone. One panel looks slightly misaligned; a thin draft touches the air.",
   "exits": {
     "west": "cave_drawings",
     "north": {
@@ -49,7 +49,7 @@
           "difficulty_mod": 0,
           "success": {
             "set_flag": "secret_tomb_opening_idol_revealed",
-            "success_text": "You find a concealed door in the worked stone."
+            "success_text": "You find a concealed door in the worked stone. A hidden passage is revealed to the east."
           },
           "fail_text": "You find nothing but cold stone."
         }

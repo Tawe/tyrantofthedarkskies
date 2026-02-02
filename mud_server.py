@@ -144,6 +144,9 @@ class Room:
         # Weather (docs/weather_system.md): region_id, weather_exposure (indoor | sheltered | outdoor | coastal)
         self.region_id = None
         self.weather_exposure = None
+        # Ambient life (Black Anchor style): rotating text on enter/linger
+        self.ambient_lines = []  # broadcast one at random when someone enters
+        self.enter_flavor = []  # send one at random to the entering player (NPC acknowledgment)
 
     def to_dict(self):
         return {
@@ -161,6 +164,8 @@ class Room:
             "hidden_exits": getattr(self, "hidden_exits", []),
             "region_id": getattr(self, "region_id", None),
             "weather_exposure": getattr(self, "weather_exposure", None),
+            "ambient_lines": getattr(self, "ambient_lines", []),
+            "enter_flavor": getattr(self, "enter_flavor", []),
         }
     
     def from_dict(self, data):
@@ -929,41 +934,48 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             room.region_id = room_data.get("region_id") or room_data.get("zone")
                             room.weather_exposure = room_data.get("weather_exposure")
                             room.creature_presence = room_data.get("creature_presence")
+                            room.exit_hints = room_data.get("exit_hints", {})
+                            room.ambient_lines = room_data.get("ambient_lines", [])
+                            room.enter_flavor = room_data.get("enter_flavor", [])
                             self.rooms[room.room_id] = room
                         print(f"Loaded {len(self.rooms)} rooms from Firebase")
                 except Exception as e:
                     print(f"Error loading rooms from Firebase: {e}, using contributions only")
             
-            # 2) Overlay (or load) from contributions/rooms/ — local files override Firebase
+            # 2) Overlay (or load) from contributions/rooms/ — area subfolders and flat; local edits override Firebase
             contributions_dir = "contributions/rooms"
             if os.path.exists(contributions_dir):
                 count = 0
-                for filename in os.listdir(contributions_dir):
-                    if filename.endswith('.json') and filename != 'README.md':
-                        filepath = os.path.join(contributions_dir, filename)
-                        try:
-                            with open(filepath, 'r', encoding='utf-8') as f:
-                                room_data = json.load(f)
-                                room = Room(room_data["room_id"], room_data["name"], room_data["description"])
-                                exits_data = room_data.get("exits", {})
-                                room.exits = {}
-                                for direction, exit_value in exits_data.items():
-                                    room.exits[direction] = exit_value
-                                room.items = room_data.get("items", [])
-                                room.npcs = room_data.get("npcs", [])
-                                room.flags = room_data.get("flags", [])
-                                room.combat_tags = room_data.get("combat_tags", [])
-                                room.spawn_groups = room_data.get("spawn_groups", [])
-                                room.zone = room_data.get("zone")
-                                room.interactables = room_data.get("interactables", [])
-                                room.hidden_exits = room_data.get("hidden_exits", [])
-                                room.region_id = room_data.get("region_id") or room_data.get("zone")
-                                room.weather_exposure = room_data.get("weather_exposure")
-                                room.creature_presence = room_data.get("creature_presence")
-                                self.rooms[room.room_id] = room
-                                count += 1
-                        except Exception as e:
-                            print(f"Error loading room file {filename}: {e}")
+                for root, _dirs, files in os.walk(contributions_dir):
+                    for filename in files:
+                        if filename.endswith('.json') and filename != 'README.md':
+                            filepath = os.path.join(root, filename)
+                            try:
+                                with open(filepath, 'r', encoding='utf-8') as f:
+                                    room_data = json.load(f)
+                                    room = Room(room_data["room_id"], room_data["name"], room_data["description"])
+                                    exits_data = room_data.get("exits", {})
+                                    room.exits = {}
+                                    for direction, exit_value in exits_data.items():
+                                        room.exits[direction] = exit_value
+                                    room.items = room_data.get("items", [])
+                                    room.npcs = room_data.get("npcs", [])
+                                    room.flags = room_data.get("flags", [])
+                                    room.combat_tags = room_data.get("combat_tags", [])
+                                    room.spawn_groups = room_data.get("spawn_groups", [])
+                                    room.zone = room_data.get("zone")
+                                    room.interactables = room_data.get("interactables", [])
+                                    room.hidden_exits = room_data.get("hidden_exits", [])
+                                    room.region_id = room_data.get("region_id") or room_data.get("zone")
+                                    room.weather_exposure = room_data.get("weather_exposure")
+                                    room.creature_presence = room_data.get("creature_presence")
+                                    room.exit_hints = room_data.get("exit_hints", {})
+                                    room.ambient_lines = room_data.get("ambient_lines", [])
+                                    room.enter_flavor = room_data.get("enter_flavor", [])
+                                    self.rooms[room.room_id] = room
+                                    count += 1
+                            except Exception as e:
+                                print(f"Error loading room file {filepath}: {e}")
                 
                 if count > 0:
                     print(f"Rooms: {count} from contributions/rooms/ (overlay on Firebase)")
@@ -1255,6 +1267,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 
                 if count > 0:
                     print(f"Loaded {count} items from contributions/items/")
+                    self._merge_shop_items_into_items()
                     return
             
             # Try Firebase as fallback for items
@@ -1285,14 +1298,63 @@ that scales by tier, and offers attribute bonuses and starting skills.
                             
                             self.items[item.item_id] = item
                         print(f"Loaded {len(self.items)} items from Firebase")
+                        self._merge_shop_items_into_items()
                         return
                 except Exception as e:
                     print(f"Error loading items from Firebase: {e}")
             
-            # No items found
-            print("No items found")
+            self._merge_shop_items_into_items()
+            if not self.items:
+                print("No items found")
         except Exception as e:
             print(f"Error loading items from JSON: {e}")
+    
+    def _merge_shop_items_into_items(self):
+        """Ensure every shop item exists in self.items so player inventory from Firebase resolves.
+        Firebase stores inventory by item_id; if a player bought padded_armor/dagger (shop-only),
+        they are not in contributions/items/ so they would be missing from self.items and disappear from inventory display."""
+        shop_items_data = self.load_shop_items()
+        if not shop_items_data:
+            return
+        merged = 0
+        for item_id, item_data in shop_items_data.items():
+            if item_id in self.items:
+                continue
+            try:
+                item = Item(
+                    item_data.get("item_id", item_id),
+                    item_data.get("name", item_id),
+                    item_data.get("description", ""),
+                    item_data.get("item_type", "item")
+                )
+                item.from_dict(item_data)
+                if item.item_type == "weapon" and item_data.get("weapon_template_id") and self.weapons:
+                    template_id = item_data.get("weapon_template_id")
+                    modifier_id = item_data.get("weapon_modifier_id")
+                    created = self.create_weapon_item(template_id, modifier_id, item_id)
+                    if created:
+                        item = created
+                elif item.item_type == "weapon" and getattr(item, "weapon_template_id", None) and item.weapon_template_id in self.weapons:
+                    template = self.weapons[item.weapon_template_id]
+                    if not hasattr(item, "damage_min") or getattr(item, "damage_min", 0) == 0:
+                        item.category = template.get("category")
+                        item.weapon_class = template.get("class")
+                        item.hands = template.get("hands", 1)
+                        item.range = template.get("range", 0)
+                        item.damage_min = template.get("damage_min", 0)
+                        item.damage_max = template.get("damage_max", 0)
+                        item.damage_type = template.get("damage_type")
+                        item.crit_chance = template.get("crit_chance", 0.0)
+                        item.speed_cost = template.get("speed_cost", 1.0)
+                        item.max_durability = template.get("durability", 50)
+                        if getattr(item, "current_durability", None) is None:
+                            item.current_durability = item.max_durability
+                self.items[item_id] = item
+                merged += 1
+            except Exception as e:
+                print(f"Error merging shop item {item_id} into items: {e}")
+        if merged > 0:
+            print(f"Merged {merged} shop items into game items (for inventory display).")
     
     def load_shop_items(self):
         """Load shop items from individual files in contributions/shop_items/ or fallback to consolidated file."""
@@ -2219,14 +2281,21 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 output += f"\n\n{overlay}\n"
         
         exits = []
+        exit_hints = getattr(room, "exit_hints", None) or {}
         if room.exits:
             for direction in room.exits.keys():
-                exits.append(self.format_exit(direction))
+                part = self.format_exit(direction)
+                if exit_hints.get(direction):
+                    part += f" ({exit_hints.get(direction)})"
+                exits.append(part)
         for h in getattr(room, "hidden_exits", []) or []:
             d = h.get("direction")
             flag = h.get("reveal_flag")
             if d and flag and getattr(player, "has_flag", lambda n: False)(flag):
-                exits.append(self.format_exit(d))
+                part = self.format_exit(d)
+                if exit_hints.get(d):
+                    part += f" ({exit_hints.get(d)})"
+                exits.append(part)
         if exits:
             output += f"\nExits: {' '.join(exits)}"
             
@@ -2484,6 +2553,19 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 output += f"You can see {', '.join(npcs_visible)} there.\n"
         
         self.send_to_player(player, output)
+
+    def _emit_room_enter_ambient(self, room_id, room, player):
+        """Emit ambient line (to room) and enter_flavor (to entering player) when present. Black Anchor style."""
+        if not room:
+            return
+        ambient = getattr(room, "ambient_lines", []) or []
+        if ambient:
+            line = random.choice(ambient)
+            self.broadcast_to_room(room_id, line)
+        flavor = getattr(room, "enter_flavor", []) or []
+        if flavor:
+            line = random.choice(flavor)
+            self.send_to_player(player, line)
         
     def move_command(self, player, direction):
         room = self.get_room(player.room_id)
@@ -2491,18 +2573,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
             self.send_to_player(player, self.format_error("You are in an unknown location."))
             return
 
-        # P1 — Disengage gate: if engaged in combat, require disengage before moving
-        if self.combat_manager:
-            combat = self.combat_manager.get_combat_state(player.room_id)
-            if combat.is_active and player.name in combat.combatants:
-                self.send_to_player(
-                    player,
-                    self.format_error(
-                        "You are in combat. Use 'disengage' to break away before moving."
-                    ),
-                )
-                return
-
+        # Allow movement even while in combat; leaving the room ends combat participation (Option 1, combat.md)
         visible_exits = set(room.exits.keys())
         for h in getattr(room, "hidden_exits", []) or []:
             if h.get("reveal_flag") and getattr(player, "has_flag", lambda n: False)(h.get("reveal_flag", "")):
@@ -2571,6 +2642,14 @@ that scales by tier, and offers attribute bonuses and starting skills.
         new_room.players.add(player.name)
         player.room_id = new_room_id
 
+        # Leaving a room ends combat participation (Option 1, combat.md)
+        if self.combat_manager:
+            old_combat = self.combat_manager.get_combat_state(old_room_id)
+            if old_combat and old_combat.is_active and player.name in old_combat.combatants:
+                old_combat.remove_combatant(player.name)
+                if len(old_combat.combatants) < 2:
+                    self.combat_manager.end_combat(old_room_id)
+
         # Runtime state: load/create room_state once and reuse to avoid extra Firebase loads (R4, B1)
         room_state = None
         if self.runtime_state:
@@ -2620,6 +2699,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         else:
             self.look_command(player, [])
         self.broadcast_to_room(new_room_id, f"{player.name} arrives.", player.name)
+        self._emit_room_enter_ambient(new_room_id, new_room, player)
 
     def say_command(self, player, args):
         if not args:

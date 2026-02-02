@@ -6,7 +6,7 @@
   "level_range": [5, 5],
   "role": "boss",
   "stats": {
-    "hp_max": 120,
+    "hp_max": 60,
     "attack": {
       "speed_cost": 1.0,
       "accuracy": 12,
@@ -17,7 +17,7 @@
     }
   },
   "skills": {
-    "Dodging": 10,
+    "Dodging": 1,
     "Fighting": 14
   },
   "behaviors": {

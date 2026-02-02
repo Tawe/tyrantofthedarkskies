@@ -14,7 +14,7 @@
   "exp_value": 0,
   "is_hostile": false,
   "dialogue": [
-    "Old Lorek squints at you. \"You look like the sort that doesn't scare easy.\"",
+    "Old Lorek squints at you. \"You look like the sort that doesn't scare easy.\" Ask him about [cave], [spirits], or [boat].",
     "If you're here for work, there's plenty. If you're here for trouble, take it elsewhere."
   ],
   "keywords": {

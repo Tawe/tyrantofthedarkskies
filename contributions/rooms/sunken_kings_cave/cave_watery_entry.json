@@ -1,0 +1,26 @@
+{
+  "room_id": "cave_watery_entry",
+  "name": "Watery Cave",
+  "region_id": "sunken_kings_cave",
+  "weather_exposure": "sheltered",
+  "description": "Shallow pools of salt water dot the cave floor. The stone is slick, and faint skittering echoes from the dark. Broken shell fragments crunch underfoot. To one side, the cave narrows into a low, shadowed recess. Farther ahead, the passage slopes deeper, where the air feels older and still. Another route opens wider, where the stone walls look smoother, marked by strange scratches. Behind you, pale daylight spills in from the cave mouth.",
+  "creature_presence": "Among the wet rocks, reef crabs click and scuttle, their shells scraping against stone.",
+  "exits": {
+    "west": "cave_nest",
+    "north": "cave_drawings",
+    "east": "cave_small_alcove",
+    "out": "cave_outside"
+  },
+  "items": [],
+  "npcs": [],
+  "flags": ["dangerous"],
+  "combat_tags": ["wilderness"],
+  "spawn_groups": [
+    {
+      "spawn_id": "enc_watery_reef_crabs",
+      "template_id": "reef_crab",
+      "max_alive": 3,
+      "cooldown_seconds": 900
+    }
+  ]
+}

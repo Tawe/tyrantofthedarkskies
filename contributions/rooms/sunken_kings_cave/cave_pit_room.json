@@ -3,7 +3,10 @@
   "name": "Pit Room",
   "region_id": "sunken_kings_cave",
   "weather_exposure": "indoor",
-  "description": "A wide pit splits the chamber floor. The far side is reachable—but the stone looks slick, and the drop disappears into shadow.",
+  "description": "A wide pit splits the chamber floor. The far side is reachable—but the stone near the edge is slick, and the drop disappears into shadow.",
+  "exit_hints": {
+    "north": "Attempt to cross the pit"
+  },
   "exits": {
     "south": "cave_nest",
     "north": {
