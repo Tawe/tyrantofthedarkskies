@@ -1,0 +1,14 @@
+{
+  "item_id": "food_travel_rations_3d",
+  "name": "Travel Rations (3 Days)",
+  "description": "Hard bread, dried meat, and salted roots wrapped in oilcloth. Not pleasant, but reliable.",
+  "item_type": "consumable",
+  "value": 20,
+  "stats": {},
+  "food_effect": {
+    "name": "Well Fed",
+    "hp_per_tick": 1,
+    "tick_interval_minutes": 2,
+    "duration_minutes": 20
+  }
+}

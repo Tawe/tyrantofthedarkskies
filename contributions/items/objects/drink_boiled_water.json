@@ -1,0 +1,8 @@
+{
+  "item_id": "drink_boiled_water",
+  "name": "Boiled Water",
+  "description": "Clear water that's been boiled and cooled. Safe, plain, and necessary.",
+  "item_type": "consumable",
+  "value": 2,
+  "stats": {}
+}

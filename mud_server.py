@@ -317,7 +317,8 @@ class Item:
         self.stats = {}
         # Consumables (docs/food_healing_system.md)
         self.food_effect = None  # { name, hp_per_tick, tick_interval_minutes, duration_minutes }
-        self.potion_heal = None  # [min, max] HP or single number
+        self.potion_heal = None  # [min, max] HP or single number; sets potion_sickness_until
+        self.drink_heal = None   # [min, max] HP for drinks; instant heal, no potion sickness
         
         # Weapon-specific properties
         self.weapon_template_id = None  # Reference to weapons.json template
@@ -3672,6 +3673,20 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 player.inventory.remove(item_id)
             self.send_to_player(player, f"You eat the {item.name}. You feel steadier.")
             return True
+        # Drink: small instant heal, no potion sickness (e.g. Salt Ale)
+        drink_heal = getattr(item, "drink_heal", None)
+        if drink_heal:
+            if isinstance(drink_heal, (list, tuple)) and len(drink_heal) >= 2:
+                heal_amount = random.randint(int(drink_heal[0]), int(drink_heal[1]))
+            else:
+                heal_amount = int(drink_heal) if isinstance(drink_heal, (int, float)) else 0
+            if heal_amount > 0:
+                player.health = min(player.max_health, player.health + heal_amount)
+            if item_id in player.inventory:
+                player.inventory.remove(item_id)
+            self.send_to_player(player, "You drink it. It burns going down, but settles your nerves.")
+            self.broadcast_to_room(player.room_id, f"{player.name} takes a long pull from a mug.", player.name)
+            return True
         # Potion: instant heal + 30s potion sickness
         potion_heal = getattr(item, "potion_heal", None)
         if not potion_heal and (item_id == "potion" or "potion" in (item_id or "").lower()):
@@ -3691,6 +3706,13 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 player.inventory.remove(item_id)
             self.send_to_player(player, "Warmth floods your chest as the potion takes effect.")
             self.broadcast_to_room(player.room_id, f"{player.name} drinks a health potion.", player.name)
+            return True
+        # Consumable with no mechanical effect (e.g. Boiled Water)
+        if item.item_type == "consumable":
+            if item_id in player.inventory:
+                player.inventory.remove(item_id)
+            self.send_to_player(player, f"You use the {item.name}. It does its job.")
+            self.broadcast_to_room(player.room_id, f"{player.name} drinks some water.", player.name)
             return True
         return False
     

@@ -1,0 +1,9 @@
+{
+  "item_id": "drink_salt_ale",
+  "name": "Salt Ale",
+  "description": "A cloudy ale brewed with seawater and barley. It tastes sharp and bitter, but warms you quickly.",
+  "item_type": "consumable",
+  "value": 6,
+  "stats": {},
+  "drink_heal": [2, 4]
+}

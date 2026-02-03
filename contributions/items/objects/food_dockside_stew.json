@@ -1,0 +1,14 @@
+{
+  "item_id": "food_dockside_stew",
+  "name": "Dockside Stew",
+  "description": "A thick stew of fish scraps, root vegetables, and too much pepper. It's hot, filling, and smells better than it looks.",
+  "item_type": "consumable",
+  "value": 12,
+  "stats": {},
+  "food_effect": {
+    "name": "Well Fed",
+    "hp_per_tick": 1,
+    "tick_interval_minutes": 1,
+    "duration_minutes": 30
+  }
+}
