@@ -1,30 +1,9 @@
 """Combat-related commands."""
 
-import random
-
-
-class _InstanceCombatTarget:
-    """Wrapper so runtime entity instances can be used as combat targets (same interface as NPC)."""
-    def __init__(self, inst, template_npc):
-        self._template = template_npc
-        self._inst = inst
-        self.name = template_npc.name if template_npc else inst.get("template_id", "Unknown")
-        self.health = inst.get("hp_current", 0)
-        self.max_health = inst.get("hp_max", 10)
-        self.instance_id = inst.get("instance_id")
-        self.template_id = inst.get("template_id")
-        self.loot_table = getattr(template_npc, "loot_table", []) if template_npc else []
-        self.npc_id = self.instance_id
-        self.equipped = getattr(template_npc, "equipped", {}) if template_npc else {}
-    def get_tier(self):
-        return getattr(self._template, "get_tier", lambda: "Low")() if self._template else "Low"
-    def get_attribute_bonus(self, attribute):
-        return getattr(self._template, "get_attribute_bonus", lambda _: 0)(attribute) if self._template else 0
-    def roll_skill_check(self, skill_name, difficulty_mod=0):
-        return getattr(self._template, "roll_skill_check", lambda _s, _m=0: {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50})(skill_name, difficulty_mod) if self._template else {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50}
-    @property
-    def exp_value(self):
-        return getattr(self._template, "exp_value", 0) if self._template else 0
+try:
+    from systems.combat_system import InstanceCombatTarget
+except ImportError:
+    InstanceCombatTarget = None
 
 
 def attack_command(game, player, args):
@@ -70,8 +49,9 @@ def attack_command(game, player, args):
             template_npc = game.npcs.get(template_id) if template_id else None
             display_name = (template_npc.name if template_npc else template_id or "").lower()
             if target_name in display_name:
-                target_npc = _InstanceCombatTarget(inst, template_npc)
-                break
+                target_npc = InstanceCombatTarget(inst, template_npc) if InstanceCombatTarget else None
+                if target_npc:
+                    break
     if not target_npc and not target_player:
         game.send_to_player(player, "You don't see that target here or it's not hostile.")
         return

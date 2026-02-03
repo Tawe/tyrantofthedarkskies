@@ -9,6 +9,38 @@ from collections import defaultdict
 ARMOR_SLOTS = ("head", "chest", "arms", "legs", "shield", "armor", "offhand")
 
 
+class InstanceCombatTarget:
+    """Wrapper so runtime entity instances (spawned creatures) can be used as combat targets (same interface as NPC)."""
+    def __init__(self, inst, template_npc):
+        self._template = template_npc
+        self._inst = inst
+        self.name = template_npc.name if template_npc else inst.get("template_id", "Unknown")
+        self.health = inst.get("hp_current", 0)
+        self.max_health = inst.get("hp_max", 10)
+        self.instance_id = inst.get("instance_id")
+        self.template_id = inst.get("template_id")
+        self.spawn_group_id = inst.get("spawn_group_id")
+        self.loot_table = getattr(template_npc, "loot_table", []) if template_npc else []
+        self.npc_id = self.instance_id
+        self.equipped = getattr(template_npc, "equipped", {}) if template_npc else {}
+
+    def get_tier(self):
+        return getattr(self._template, "get_tier", lambda: "Low")() if self._template else "Low"
+
+    def get_attribute_bonus(self, attribute):
+        return getattr(self._template, "get_attribute_bonus", lambda _: 0)(attribute) if self._template else 0
+
+    def roll_skill_check(self, skill_name, difficulty_mod=0):
+        return getattr(
+            self._template, "roll_skill_check",
+            lambda _s, _m=0: {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50}
+        )(skill_name, difficulty_mod) if self._template else {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50}
+
+    @property
+    def exp_value(self):
+        return getattr(self._template, "exp_value", 0) if self._template else 0
+
+
 def apply_armor_damage_reduction(target, damage, damage_type, items_dict, broadcast_func=None, room_id=None):
     """
     Apply DR from all equipped armor and degrade each piece by amount absorbed (docs/armor_system.md).

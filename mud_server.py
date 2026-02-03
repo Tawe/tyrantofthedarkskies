@@ -17,19 +17,30 @@ import traceback
 # Random encounter config lives in systems/encounter_system.py (ENCOUNTER_COOLDOWN_SECONDS, ENCOUNTER_ROLL_CHANCE, DEBUG_RANDOM_ENCOUNTERS)
 #
 # Modularity: Keep logic out of this file when possible.
+# - Models: models/ (Player, Room, NPC, Item) and server_io (WebSocketConnection)
+# - Combat target wrapper: systems/combat_system.InstanceCombatTarget
 # - Weather: systems/weather_system.py (WeatherService)
 # - Random encounters: systems/encounter_system.py (EncounterService)
-# - Command handlers: commands/ (look_command, move_command, inventory_command, drop_command, etc.). When
-#   COMMANDS_AVAILABLE, process_command uses those. get_command stays on MudGame (handles interactables
-#   and runtime item instances). The long look_command/move_command etc. on MudGame are fallbacks when
-#   the commands package fails to import.
+# - Command handlers: commands/ (look, move, inventory, combat, loot, shop, etc.). When COMMANDS_AVAILABLE,
+#   process_command uses those. get_command/loot_command etc. on MudGame are fallbacks when commands fail to import.
 
-# Import Player from models package
+# Core models (Room, NPC, Item, Player)
 try:
-    from models.player import Player
+    from models import Player, Room, NPC, Item
 except ImportError:
-    # If import fails, Player class must be defined below
-    Player = None
+    try:
+        from models.player import Player
+    except ImportError:
+        Player = None
+    Room = NPC = Item = None
+if Room is None:
+    raise ImportError("Failed to import models. Ensure models/room.py, npc.py, item.py, player.py exist.")
+
+# WebSocket connection wrapper
+try:
+    from server_io import WebSocketConnection
+except ImportError:
+    WebSocketConnection = None
 
 # WebSocket support
 try:
@@ -83,422 +94,11 @@ except ImportError as e:
     print(f"Warning: Command handlers not available: {e}")
     # Fallback: commands will use methods defined in MudGame class
 
-class WebSocketConnection:
-    """Wrapper to make WebSocket connections work like socket connections"""
-    def __init__(self, websocket, address, send_queue, loop=None):
-        self.websocket = websocket
-        self.address = address
-        self.send_queue = send_queue  # Queue for messages to send
-        self.loop = loop  # Event loop for thread-safe queueing
-        self._closed = False
-        self._timeout = None
-    
-    def send(self, data):
-        """Queue data to send through WebSocket"""
-        if isinstance(data, bytes):
-            data = data.decode('utf-8', errors='replace')
-        if not self._closed and self.send_queue is not None:
-            try:
-                # asyncio.Queue isn't thread-safe; commands may run in a worker thread.
-                # Use the loop to enqueue safely when available.
-                if self.loop is not None:
-                    self.loop.call_soon_threadsafe(self.send_queue.put_nowait, data)
-                else:
-                    self.send_queue.put_nowait(data)
-            except Exception as e:
-                print(f"Error queuing WebSocket message: {e}")
-                self._closed = True
-    
-    def close(self):
-        """Close WebSocket connection"""
-        self._closed = True
-    
-    @property
-    def closed(self):
-        """Check if WebSocket connection is closed."""
-        return self._closed
-
-# Player class is now imported from models.player
-# If import failed above, Player will be None and we need to define it here
-if Player is None:
-    raise ImportError("Failed to import Player from models.player. Please ensure models/player.py exists.")
-
-class Room:
-    def __init__(self, room_id, name, description):
-        self.room_id = room_id
-        self.name = name
-        self.description = description
-        self.exits = {}
-        self.items = []
-        self.npcs = []
-        self.players = set()
-        self.flags = []
-        self.combat_tags = []  # open, cramped, slick, obscured, elevated
-        # Present encounters (runtime_state): spawn_groups from room JSON (spawn_id, template_id, max_alive, cooldown_seconds)
-        self.spawn_groups = []
-        # Zone for random encounter table (docs/random_encounters.md): unflooded_sea, kelp_plains, rift_forest
-        self.zone = None
-        # Interactables: barrel of sticks, etc. (object_id, name, keywords, examine_text, actions)
-        self.interactables = []
-        # Hidden exits revealed by player flags: [{ "direction": "east", "target": "room_id", "reveal_flag": "flag_name" }]
-        self.hidden_exits = []
-        # Weather (docs/weather_system.md): region_id, weather_exposure (indoor | sheltered | outdoor | coastal)
-        self.region_id = None
-        self.weather_exposure = None
-        # Ambient life (Black Anchor style): rotating text on enter/linger
-        self.ambient_lines = []  # broadcast one at random when someone enters
-        self.enter_flavor = []  # send one at random to the entering player (NPC acknowledgment)
-
-    def to_dict(self):
-        return {
-            "room_id": self.room_id,
-            "name": self.name,
-            "description": self.description,
-            "exits": self.exits,
-            "items": self.items,
-            "npcs": self.npcs,
-            "flags": self.flags,
-            "combat_tags": self.combat_tags,
-            "spawn_groups": getattr(self, "spawn_groups", []),
-            "zone": getattr(self, "zone", None),
-            "interactables": getattr(self, "interactables", []),
-            "hidden_exits": getattr(self, "hidden_exits", []),
-            "region_id": getattr(self, "region_id", None),
-            "weather_exposure": getattr(self, "weather_exposure", None),
-            "ambient_lines": getattr(self, "ambient_lines", []),
-            "enter_flavor": getattr(self, "enter_flavor", []),
-        }
-    
-    def from_dict(self, data):
-        for key, value in data.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-
-class NPC:
-    def __init__(self, npc_id, name, description):
-        self.npc_id = npc_id
-        self.name = name
-        self.description = description
-        
-        # Core stats (PC parity)
-        self.health = 50
-        self.max_health = 50
-        self.mana = 25
-        self.max_mana = 25
-        self.stamina = 50
-        self.max_stamina = 50
-        
-        # Attributes (PC parity)
-        self.attributes = {
-            "physical": 10,
-            "mental": 10,
-            "spiritual": 10,
-            "social": 10
-        }
-        
-        # Skills (PC parity)
-        self.skills = {}
-        
-        # Combat system
-        self.combat_role = None  # Brute, Minion, Boss, Artillery, Healer, Controller
-        self.tier = "Low"  # Low, Mid, High, Epic
-        self.level = 1  # Fixed level based on tier
-        self.exp_value = 0  # EXP granted on defeat
-        
-        # Maneuvers
-        self.known_maneuvers = []
-        self.active_maneuvers = []
-        
-        # Equipment
-        self.equipped = {}
-        
-        # Combat state
-        self.is_hostile = False
-        self.combat_state = "Observing"  # Observing, Engaged, Supporting, Disengaging, Exposed, Pinned, Staggered
-        self.combat_target = None
-        self.initiative = 0
-        
-        # Loot
-        self.loot_table = []
-        
-        # Outlooks & relationships
-        self.outlooks = {}  # {player_name: outlook_value}
-        self.faction_outlooks = {}  # {faction: outlook_value}
-        
-        # Legacy fields
-        self.dialogue = []
-        self.inventory = []
-    
-    def get_tier(self):
-        """Get tier based on level"""
-        if self.level <= 5:
-            return "Low"
-        elif self.level <= 10:
-            return "Mid"
-        elif self.level <= 15:
-            return "High"
-        else:
-            return "Epic"
-    
-    def get_attribute_bonus(self, attribute):
-        """Calculate attribute bonus (same as Player)"""
-        if attribute not in self.attributes:
-            return 0
-        return (self.attributes[attribute] - 5) // 2
-    
-    def roll_skill_check(self, skill_name, difficulty_mod=0):
-        """Roll skill check (same signature as Player; combat system passes difficulty_mod)."""
-        if skill_name not in self.skills:
-            base_skill = 1
-        else:
-            base_skill = self.skills[skill_name]
-        effective_skill = max(1, base_skill + difficulty_mod)
-        roll = random.randint(1, 100)
-        if roll <= effective_skill // 10:
-            return {"result": "critical", "roll": roll, "skill": effective_skill, "effective_skill": effective_skill}
-        elif roll <= effective_skill:
-            return {"result": "success", "roll": roll, "skill": effective_skill, "effective_skill": effective_skill}
-        else:
-            return {"result": "failure", "roll": roll, "skill": effective_skill, "effective_skill": effective_skill}
-        
-    def to_dict(self):
-        return {
-            "npc_id": self.npc_id,
-            "name": self.name,
-            "description": self.description,
-            "health": self.health,
-            "max_health": self.max_health,
-            "mana": self.mana,
-            "max_mana": self.max_mana,
-            "stamina": self.stamina,
-            "max_stamina": self.max_stamina,
-            "attributes": self.attributes,
-            "skills": self.skills,
-            "combat_role": self.combat_role,
-            "tier": self.tier,
-            "level": self.level,
-            "exp_value": self.exp_value,
-            "known_maneuvers": self.known_maneuvers,
-            "active_maneuvers": self.active_maneuvers,
-            "equipped": self.equipped,
-            "is_hostile": self.is_hostile,
-            "combat_state": self.combat_state,
-            "loot_table": self.loot_table,
-            "outlooks": self.outlooks,
-            "faction_outlooks": self.faction_outlooks,
-            "dialogue": self.dialogue,
-            "inventory": self.inventory
-        }
-        
-        # Add merchant fields if present
-        if hasattr(self, 'shop_inventory'):
-            result["shop_inventory"] = self.shop_inventory
-        if hasattr(self, 'keywords'):
-            result["keywords"] = self.keywords
-        if hasattr(self, 'is_merchant'):
-            result["is_merchant"] = self.is_merchant
-        if hasattr(self, 'faction'):
-            result["faction"] = self.faction
-    
-    def from_dict(self, data):
-        for key, value in data.items():
-            # Always set the attribute, even if it doesn't exist yet (for new fields like shop_inventory, keywords, etc.)
-            setattr(self, key, value)
-        
-        # Ensure tier matches level
-        self.tier = self.get_tier()
-
-class Item:
-    def __init__(self, item_id, name, description, item_type="item"):
-        self.item_id = item_id
-        self.name = name
-        self.description = description
-        self.item_type = item_type  # weapon, armor, consumable, item
-        self.value = 0
-        self.stats = {}
-        # Consumables (docs/food_healing_system.md)
-        self.food_effect = None  # { name, hp_per_tick, tick_interval_minutes, duration_minutes }
-        self.potion_heal = None  # [min, max] HP or single number; sets potion_sickness_until
-        self.drink_heal = None   # [min, max] HP for drinks; instant heal, no potion sickness
-        
-        # Weapon-specific properties
-        self.weapon_template_id = None  # Reference to weapons.json template
-        self.weapon_modifier_id = None  # Reference to weapon_modifiers.json
-        self.current_durability = None  # Current durability (None = full)
-        
-        # Weapon stats (from template + modifier)
-        self.category = None  # Melee, Ranged
-        self.weapon_class = None  # Sword, Dagger, Bow, etc.
-        self.hands = 1  # 1 or 2
-        self.range = 0  # 0 for melee, >0 for ranged
-        self.damage_min = 0
-        self.damage_max = 0
-        self.damage_type = None  # slashing, piercing, bludgeoning
-        self.crit_chance = 0.0
-        self.speed_cost = 1.0
-        self.max_durability = 50
-        
-        # Armor-specific properties (docs/armor_system.md)
-        self.armor_type = None  # light, medium, heavy
-        self.slot = None  # single slot: head, chest, arms, legs, shield
-        self.damage_reduction = {}  # {damage_type: DR_amount}
-        self.armor_slots = []  # legacy: list of slots this can go in
-        self.primary_damage_type = None  # full DR for this type
-        self.damage_types = []  # all protected types (secondary = reduced DR)
-        self.weight = 0
-        self.armor_template_id = None
-        self.armor_modifier_id = None
-        # Armor uses same durability fields: current_durability, max_durability (armor HP)
-
-    def is_armor(self):
-        """Check if this item is armor"""
-        return self.item_type == "armor" or self.armor_type is not None
-
-    def get_armor_slot(self):
-        """Return the single slot this armor occupies (chest, head, arms, legs, shield)."""
-        if self.slot:
-            return self.slot
-        if self.armor_slots:
-            s = self.armor_slots[0].lower()
-            if s == "body":
-                return "chest"
-            if s == "offhand":
-                return "shield"
-            return s
-        return "chest"
-
-    def get_dr_for_damage_type(self, damage_type):
-        """Return DR applied for this damage type. Primary = full DR; secondary = 75%. Broken armor = 0 DR."""
-        if not self.damage_reduction:
-            return 0
-        cur = self.get_current_durability() if hasattr(self, 'get_current_durability') else getattr(self, 'current_durability', None)
-        if cur is not None and cur <= 0:
-            return 0
-        base_dr = self.damage_reduction.get(damage_type, 0)
-        if base_dr <= 0:
-            return 0
-        if self.primary_damage_type and damage_type == self.primary_damage_type:
-            return base_dr
-        if self.damage_types and damage_type in self.damage_types:
-            return max(0, int(base_dr * 0.75))  # secondary effectiveness
-        return base_dr  # no primary/secondary split: use as-is
-
-    def reduce_armor_hp(self, amount):
-        """Reduce armor durability by amount absorbed. Returns True if broken (0 HP)."""
-        if self.current_durability is None:
-            self.current_durability = self.max_durability if self.max_durability else 50
-        self.current_durability = max(0, self.current_durability - amount)
-        return self.current_durability <= 0
-
-    def get_effective_damage(self):
-        """Get effective damage range (min, max)"""
-        return (self.damage_min, self.damage_max)
-    
-    def get_effective_crit_chance(self):
-        """Get effective critical hit chance"""
-        return self.crit_chance
-    
-    def get_effective_speed_cost(self):
-        """Get effective speed cost"""
-        return self.speed_cost
-    
-    def get_current_durability(self):
-        """Get current durability (defaults to max if not set)"""
-        if self.current_durability is None:
-            return self.max_durability
-        return self.current_durability
-    
-    def reduce_durability(self, amount=1):
-        """Reduce durability, return True if broken"""
-        if self.current_durability is None:
-            self.current_durability = self.max_durability
-        self.current_durability = max(0, self.current_durability - amount)
-        return self.current_durability <= 0
-    
-    def is_weapon(self):
-        """Check if this item is a weapon"""
-        return self.item_type == "weapon" or self.category in ["Melee", "Ranged"]
-        
-    def to_dict(self):
-        result = {
-            "item_id": self.item_id,
-            "name": self.name,
-            "description": self.description,
-            "item_type": self.item_type,
-            "value": self.value,
-            "stats": self.stats
-        }
-        
-        # Include weapon properties if it's a weapon
-        if self.is_weapon():
-            result["weapon_template_id"] = self.weapon_template_id
-            result["weapon_modifier_id"] = self.weapon_modifier_id
-            result["current_durability"] = self.current_durability
-            result["category"] = self.category
-            result["weapon_class"] = self.weapon_class
-            result["hands"] = self.hands
-            result["range"] = self.range
-            result["damage_min"] = self.damage_min
-            result["damage_max"] = self.damage_max
-            result["damage_type"] = self.damage_type
-            result["crit_chance"] = self.crit_chance
-            result["speed_cost"] = self.speed_cost
-            result["max_durability"] = self.max_durability
-        
-        # Include armor properties if it's armor
-        if self.is_armor():
-            result["armor_type"] = self.armor_type
-            result["slot"] = self.slot
-            result["damage_reduction"] = self.damage_reduction
-            result["armor_slots"] = self.armor_slots
-            result["primary_damage_type"] = self.primary_damage_type
-            result["damage_types"] = getattr(self, "damage_types", []) or []
-            result["weight"] = getattr(self, "weight", 0)
-            result["armor_template_id"] = getattr(self, "armor_template_id", None)
-            result["armor_modifier_id"] = getattr(self, "armor_modifier_id", None)
-            result["current_durability"] = self.current_durability
-            result["max_durability"] = getattr(self, "max_durability", 50)
-        
-        return result
-    
-    def from_dict(self, data):
-        for key, value in data.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-
-
-class _InstanceCombatTarget:
-    """Wrapper so runtime entity instances (spawned creatures) can be used as combat targets."""
-    def __init__(self, inst, template_npc):
-        self._template = template_npc
-        self._inst = inst
-        self.name = template_npc.name if template_npc else inst.get("template_id", "Unknown")
-        self.health = inst.get("hp_current", 0)
-        self.max_health = inst.get("hp_max", 10)
-        self.instance_id = inst.get("instance_id")
-        self.template_id = inst.get("template_id")
-        self.spawn_group_id = inst.get("spawn_group_id")
-        self.loot_table = getattr(template_npc, "loot_table", []) if template_npc else []
-        self.npc_id = self.instance_id
-        self.equipped = getattr(template_npc, "equipped", {}) if template_npc else {}
-
-    def get_tier(self):
-        return getattr(self._template, "get_tier", lambda: "Low")() if self._template else "Low"
-
-    def get_attribute_bonus(self, attribute):
-        return getattr(self._template, "get_attribute_bonus", lambda _: 0)(attribute) if self._template else 0
-
-    def roll_skill_check(self, skill_name, difficulty_mod=0):
-        return getattr(
-            self._template, "roll_skill_check",
-            lambda _s, _m=0: {"result": "success", "roll": random.randint(1, 100), "effective_skill": 50}
-        )(skill_name, difficulty_mod) if self._template else {
-            "result": "success", "roll": random.randint(1, 100), "effective_skill": 50
-        }
-
-    @property
-    def exp_value(self):
-        return getattr(self._template, "exp_value", 0) if self._template else 0
+# Instance combat target (runtime creatures as combat targets)
+try:
+    from systems.combat_system import InstanceCombatTarget
+except ImportError:
+    InstanceCombatTarget = None
 
 
 class MudGame:
@@ -3438,8 +3038,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 template_npc = self.npcs.get(template_id) if template_id else None
                 display_name = (template_npc.name if template_npc else template_id or "").lower()
                 if target_name in display_name:
-                    target_npc = _InstanceCombatTarget(inst, template_npc)
-                    break
+                    target_npc = InstanceCombatTarget(inst, template_npc) if InstanceCombatTarget else None
+                    if target_npc:
+                        break
 
         if not target_npc and not target_player:
             self.send_to_player(player, "You don't see that target here or it's not hostile.")
