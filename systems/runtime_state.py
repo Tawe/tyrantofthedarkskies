@@ -313,6 +313,17 @@ class RuntimeStateService:
             return None
         return self.data_layer.load_entity_instance(instance_id)
 
+    def update_entity_instance(self, instance_id: str, **fields) -> bool:
+        """Load instance, merge fields, save. Returns True if updated."""
+        if not self._enabled() or not instance_id:
+            return False
+        inst = self.data_layer.load_entity_instance(instance_id)
+        if inst is None:
+            return False
+        inst.update(fields)
+        self.data_layer.save_entity_instance(instance_id, inst)
+        return True
+
     def get_entity_position(self, instance_id: str) -> Optional[Dict]:
         """Load position for one instance."""
         if not self._enabled():

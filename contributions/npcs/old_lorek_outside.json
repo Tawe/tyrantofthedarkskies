@@ -10,10 +10,21 @@
   "exp_value": 0,
   "is_hostile": false,
   "dialogue": [
-    "I'll wait here. Don't ask me to come in.",
-    "When you're ready… you say the word, and we go back."
+    {
+      "emote": "keeps his eyes on the skiff, not the cave",
+      "say": "I'll wait here. Don't ask me to come in. When you're done, ask me to take you [back] and I'll row you to the docks."
+    }
   ],
   "keywords": {
-    "return": "Back to the docks? Good. I don't like this place."
+    "back": {
+      "emote": "nods and reaches for the rope",
+      "say": "Back to the docks? Good. I don't like this place.",
+      "travel_to_room_id": "docks"
+    },
+    "return": {
+      "emote": "nods and reaches for the rope",
+      "say": "Back to the docks? Good. I don't like this place.",
+      "travel_to_room_id": "docks"
+    }
   }
 }

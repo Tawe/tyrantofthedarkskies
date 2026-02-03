@@ -1056,6 +1056,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         npc.level = lr[0] if lr and len(lr) > 0 else 1
         loot = data.get("loot", {})
         npc.exp_value = loot.get("xp_value", 0)
+        npc.loot = dict(loot)  # full block for docs/loot_system.md (corpse, guaranteed, tables, chance, coins)
         if loot.get("entries"):
             npc.loot_table = list(loot["entries"])
         else:
@@ -1116,10 +1117,16 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 text = item.get("text")
                 if key is None or text is None:
                     continue
-                npc.keywords[key] = text
+                # Merge text with skill_check/requires (siblings in JSON) so talk command can run the check
+                value = dict(text) if isinstance(text, dict) else {"say": text}
+                if item.get("skill_check"):
+                    value["skill_check"] = item["skill_check"]
+                if item.get("requires"):
+                    value["requires"] = item["requires"]
+                npc.keywords[key] = value
                 for alias in item.get("aliases") or []:
                     if alias:
-                        npc.keywords[alias] = text
+                        npc.keywords[alias] = value
 
     def _overlay_npcs_from_contributions(self):
         """Overlay contribution NPC JSON onto existing NPCs (e.g. from Firebase) so merchant inventory etc. come from local files."""
@@ -2395,14 +2402,18 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 items_here.append(self.format_item(item.name))
         if self.runtime_state:
             for inst in self.runtime_state.get_entities_in_room(room.room_id):
-                if inst.get("entity_type") != "item":
-                    continue
-                template_id = inst.get("template_id")
-                item = self.items.get(template_id) if template_id else None
-                name = item.name if item else (template_id or "Unknown")
-                items_here.append(self.format_item(name))
+                if inst.get("entity_type") == "item":
+                    template_id = inst.get("template_id")
+                    item = self.items.get(template_id) if template_id else None
+                    name = item.name if item else (template_id or "Unknown")
+                    items_here.append(self.format_item(name))
         if items_here:
             output += f"\nItems here: {', '.join(items_here)}"
+        # Corpses (docs/loot_system.md)
+        if self.runtime_state:
+            corpses_here = [inst.get("name", "a corpse") for inst in self.runtime_state.get_entities_in_room(room.room_id) if inst.get("entity_type") == "corpse"]
+            if corpses_here:
+                output += f"\nCorpses here: {', '.join(corpses_here)}"
             
         # Show room flags if present
         if room.flags:
@@ -2899,7 +2910,159 @@ that scales by tier, and offers attribute bonuses and starting skills.
             self.broadcast_to_room(player.room_id, f"{player.name} takes something from the {obj.get('name', 'object')}.", player.name)
             return
 
+        # B3/loot_system: take <item> from <corpse>
+        if " from " in item_name and self.runtime_state:
+            part, source = item_name.split(" from ", 1)
+            part, source = part.strip(), source.strip()
+            if part and source:
+                for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                    if inst.get("entity_type") != "corpse":
+                        continue
+                    corpse_name = (inst.get("name") or "").lower()
+                    if source not in corpse_name and corpse_name not in source:
+                        continue
+                    if not self._can_loot_corpse(player, inst):
+                        self.send_to_player(player, "You hesitate. This kill isn't yours to claim yet.")
+                        return
+                    loot = inst.get("loot") or {}
+                    items_list = loot.get("items") or []
+                    # Match item by name
+                    for i, entry in enumerate(items_list):
+                        item_id = entry.get("item_id")
+                        item = self.items.get(item_id) if item_id else None
+                        if not item or part not in item.name.lower():
+                            continue
+                        count = entry.get("count", 1)
+                        if count <= 1:
+                            items_list.pop(i)
+                        else:
+                            entry["count"] = count - 1
+                        if not hasattr(player, "inventory"):
+                            player.inventory = []
+                        player.inventory.append(item_id)
+                        self.runtime_state.update_entity_instance(inst["instance_id"], loot={"rolled": True, "coins": loot.get("coins", 0), "items": items_list})
+                        item_display = self.format_item(item.name)
+                        self.send_to_player(player, self.format_success(f"You take {item_display} from the corpse."))
+                        self.broadcast_to_room(player.room_id, f"{player.name} takes {item_display} from the corpse.", player.name)
+                        self._maybe_remove_empty_corpse(inst)
+                        return
+                    # Try "coins" if part matches
+                    if part in ("coin", "coins", "gold", "money") and loot.get("coins", 0) > 0:
+                        amount = loot["coins"]
+                        player.gold = getattr(player, "gold", 0) + amount
+                        self.runtime_state.update_entity_instance(inst["instance_id"], loot={"rolled": True, "coins": 0, "items": loot.get("items") or []})
+                        self.send_to_player(player, self.format_success(f"You take {amount} coin from the corpse."))
+                        self.broadcast_to_room(player.room_id, f"{player.name} takes coin from the corpse.", player.name)
+                        self._maybe_remove_empty_corpse(inst)
+                        return
+                    self.send_to_player(player, "You don't see that in the corpse.")
+                    return
         self.send_to_player(player, "You don't see that here.")
+
+    def _can_loot_corpse(self, player, corpse_inst):
+        """True if player is allowed to loot (ownership window or expired)."""
+        ownership = corpse_inst.get("ownership") or {}
+        if not ownership:
+            return True
+        now = time.time()
+        expires_at = ownership.get("expires_at") or 0
+        if now >= expires_at:
+            return True
+        allowed = ownership.get("allowed_player_ids") or []
+        return player.name in allowed
+
+    def _maybe_remove_empty_corpse(self, corpse_inst):
+        """Remove corpse from world if it has no items and 0 coins."""
+        loot = corpse_inst.get("loot") or {}
+        if (loot.get("coins") or 0) > 0:
+            return
+        items = loot.get("items") or []
+        if any((e.get("count") or 0) > 0 for e in items):
+            return
+        instance_id = corpse_inst.get("instance_id")
+        if instance_id and self.runtime_state:
+            self.runtime_state.remove_entity_from_world(instance_id, delete_instance=True)
+
+    def loot_command(self, player, args):
+        """Loot system (docs/loot_system.md): loot [all] [corpse] — list corpses, show contents, or take all."""
+        room = self.get_room(player.room_id)
+        if not room:
+            self.send_to_player(player, "You are in an unknown location.")
+            return
+        corpses = []
+        if self.runtime_state:
+            for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                if inst.get("entity_type") == "corpse":
+                    corpses.append(inst)
+        if not corpses:
+            self.send_to_player(player, "There are no corpses here to loot.")
+            return
+        # loot all
+        if args and args[0].lower() == "all":
+            corpse = corpses[0] if len(corpses) == 1 else None
+            if not corpse:
+                self.send_to_player(player, "Which corpse? Name one (e.g. loot corpse of X).")
+                return
+            if not self._can_loot_corpse(player, corpse):
+                self.send_to_player(player, "You hesitate. This kill isn't yours to claim yet.")
+                return
+            loot = corpse.get("loot") or {}
+            items_list = list(loot.get("items") or [])
+            coins = loot.get("coins") or 0
+            taken = []
+            for entry in items_list:
+                item_id = entry.get("item_id")
+                count = entry.get("count", 1)
+                item = self.items.get(item_id) if item_id else None
+                if item:
+                    for _ in range(count):
+                        player.inventory.append(item_id)
+                    taken.append(f"{item.name}" + (f" (x{count})" if count > 1 else ""))
+            if coins > 0:
+                player.gold = getattr(player, "gold", 0) + coins
+                taken.append(f"{coins} coin")
+            self.runtime_state.update_entity_instance(corpse["instance_id"], loot={"rolled": True, "coins": 0, "items": []})
+            self._maybe_remove_empty_corpse({**corpse, "loot": {"coins": 0, "items": []}})
+            if taken:
+                self.send_to_player(player, self.format_success(f"You take {', '.join(taken)} from the corpse."))
+                self.broadcast_to_room(player.room_id, f"{player.name} loots the corpse.", player.name)
+            else:
+                self.send_to_player(player, "The corpse is already empty.")
+            return
+        # loot <corpse> — show contents
+        target = " ".join(args).lower() if args else ""
+        if target:
+            for inst in corpses:
+                name = (inst.get("name") or "").lower()
+                if target in name or name in target:
+                    if not self._can_loot_corpse(player, inst):
+                        self.send_to_player(player, "You hesitate. This kill isn't yours to claim yet.")
+                        return
+                    loot = inst.get("loot") or {}
+                    coins = loot.get("coins") or 0
+                    items_list = loot.get("items") or []
+                    lines = []
+                    if coins > 0:
+                        lines.append(f"Coins: {coins}")
+                    if items_list:
+                        item_parts = []
+                        for entry in items_list:
+                            item_id = entry.get("item_id")
+                            count = entry.get("count", 1)
+                            item = self.items.get(item_id) if item_id else None
+                            name_str = item.name if item else item_id or "?"
+                            item_parts.append(f"{name_str}" + (f" (x{count})" if count > 1 else ""))
+                        lines.append("Items: " + ", ".join(item_parts))
+                    if not lines:
+                        self.send_to_player(player, "The corpse is empty.")
+                    else:
+                        self.send_to_player(player, self.format_header(inst.get("name", "Corpse")) + "\n" + "\n".join(lines))
+                    return
+            self.send_to_player(player, "You don't see that corpse here.")
+            return
+        # loot — list corpses
+        names = [inst.get("name", "a corpse") for inst in corpses]
+        self.send_to_player(player, "Lootable corpses here: " + ", ".join(names) + ".")
 
     def search_command(self, player, args):
         """Search an interactable; runs skill check and applies success/fail from actions.search."""
@@ -3109,7 +3272,8 @@ that scales by tier, and offers attribute bonuses and starting skills.
 
 {self.format_header('Inventory & Items:')}
 {self.format_command('inventory')} or {self.format_command('i')} - Check your inventory
-{self.format_command('get')} or {self.format_command('take')} <item> - Pick up an item from the room
+{self.format_command('get')} or {self.format_command('take')} <item> - Pick up an item from the room (or take <item> from <corpse>)
+{self.format_command('loot')} [all] [corpse] - List lootable corpses, show contents, or take all from a corpse
 {self.format_command('drop')} <item> - Drop an item from your inventory
 {self.format_command('use')} <item> - Use a consumable item (potions, etc.)
 {self.format_command('equip')} <item> or {self.format_command('equip')} <slot> <item> - Equip a weapon or armor
@@ -3201,32 +3365,46 @@ that scales by tier, and offers attribute bonuses and starting skills.
             timer = self.runtime_state.get_spawn_timer(room_id, spawn_group_id)
             alive = max(0, timer.get("alive_count", 1) - 1)
             self.runtime_state.update_spawn_timer(room_id, spawn_group_id, alive_count=alive)
-        # Create loot as item instances and place in room
-        if template and getattr(template, "loot_table", None):
-            import time
-            now = time.time()
-            expires_at = now + (30 * 60)  # 30 minutes
-            for loot_entry in template.loot_table:
-                if isinstance(loot_entry, dict):
-                    chance = loot_entry.get("chance", 100)
-                    if random.randint(1, 100) <= chance:
-                        item_id = loot_entry.get("item")
-                        if item_id and self.items.get(item_id):
-                            item_inst_id = self.runtime_state.create_entity_instance(
-                                item_id, "item", quantity=1, expires_at=expires_at
-                            )
-                            if item_inst_id:
-                                self.runtime_state.place_entity(item_inst_id, room_id)
-                                item = self.items.get(item_id)
-                                self.broadcast_to_room(room_id, f"{item.name} drops from {target_name}!")
-                elif isinstance(loot_entry, str) and self.items.get(loot_entry):
-                    item_inst_id = self.runtime_state.create_entity_instance(
-                        loot_entry, "item", quantity=1, expires_at=expires_at
+        # Loot system (docs/loot_system.md): generate loot once, spawn corpse entity
+        if template:
+            loot_config = getattr(template, "loot", None) or {"entries": getattr(template, "loot_table", []) or []}
+            has_loot = loot_config.get("entries") or loot_config.get("guaranteed") or loot_config.get("chance") or loot_config.get("tables") or loot_config.get("coins")
+            if has_loot:
+                try:
+                    from systems.loot_system import generate_loot
+                except ImportError:
+                    generate_loot = None
+                if generate_loot:
+                    loot_tables = getattr(self, "loot_tables", {}) or {}
+                    generated = generate_loot(loot_config, loot_tables, self.items)
+                    now = time.time()
+                    decay_seconds = loot_config.get("decay_seconds", 600)
+                    decays_at = now + decay_seconds
+                    corpse_template_id = loot_config.get("corpse_template_id") or template_id or "corpse"
+                    corpse_name = f"corpse of {target_name}"
+                    corpse_desc = "Something glints among the remains."
+                    ownership_window = 60  # seconds contributors-only
+                    ownership = {
+                        "mode": "contributors",
+                        "allowed_player_ids": [attacker_name] if attacker_name else [],
+                        "expires_at": now + ownership_window,
+                    }
+                    corpse_id = self.runtime_state.create_entity_instance(
+                        corpse_template_id,
+                        "corpse",
+                        expires_at=decays_at,
+                        name=corpse_name,
+                        description=corpse_desc,
+                        source_creature_id=template_id or "",
+                        created_at=now,
+                        decays_at=decays_at,
+                        flags=["lootable"],
+                        ownership=ownership,
+                        loot=generated,
                     )
-                    if item_inst_id:
-                        self.runtime_state.place_entity(item_inst_id, room_id)
-                        item = self.items.get(loot_entry)
-                        self.broadcast_to_room(room_id, f"{item.name} drops from {target_name}!")
+                    if corpse_id:
+                        self.runtime_state.place_entity(corpse_id, room_id)
+                        self.broadcast_to_room(room_id, f"{target_name} collapses. A corpse remains.")
         # Award EXP to attacker if they are a player
         attacker = self.get_player(attacker_name)
         if attacker and template:
@@ -4362,17 +4540,77 @@ that scales by tier, and offers attribute bonuses and starting skills.
             
             if matched_key:
                 raw = npc.keywords[matched_key]
+                did_travel = False
                 if isinstance(raw, dict):
-                    set_flag_name = raw.get("set_flag")
-                    if set_flag_name and hasattr(player, "set_flag"):
-                        player.set_flag(set_flag_name)
-                        self.save_player_data(player)
-                    # Support emote/say object (docs/emote_tone_volume_system.md) or legacy "response"
-                    response_text = self._format_npc_dialogue(npc.name, raw)
+                    # Keyword response with optional skill_check (e.g. Persuading on Lorek "take me")
+                    sc = raw.get("skill_check")
+                    if isinstance(sc, dict):
+                        skill = (sc.get("skill") or "Persuading").lower()
+                        difficulty_dc = sc.get("difficulty")  # optional: target DC — if effective_skill >= this, auto-pass
+                        difficulty_mod = sc.get("difficulty_mod")
+                        if difficulty_dc is not None and isinstance(difficulty_dc, (int, float)):
+                            # "difficulty" as target DC: pass if effective_skill (no mod) >= difficulty
+                            effective = player.get_effective_skill(skill, 0)
+                            if effective >= difficulty_dc:
+                                success = True
+                            else:
+                                roll = player.roll_skill_check(skill, (difficulty_mod or 0) + self._skill_check_modifier(player))
+                                success = roll["result"] in ("success", "critical")
+                        else:
+                            mod = difficulty_mod if difficulty_mod is not None else sc.get("difficulty", 0)
+                            roll = player.roll_skill_check(skill, mod + self._skill_check_modifier(player))
+                            success = roll["result"] in ("success", "critical")
+                        player.check_skill_advancement(skill, success)
+                        outcome = sc.get("on_success") if success else sc.get("on_fail")
+                        if isinstance(outcome, dict):
+                            set_flag_name = outcome.get("set_player_flag")
+                            if set_flag_name and hasattr(player, "set_flag"):
+                                player.set_flag(set_flag_name)
+                                self.save_player_data(player)
+                            travel_to = outcome.get("travel_to_room_id")
+                            if travel_to:
+                                target_room = self.get_room(travel_to)
+                                if target_room:
+                                    old_room_id = player.room_id
+                                    old_room = self.get_room(old_room_id)
+                                    if old_room:
+                                        old_room.players.discard(player.name)
+                                    player.room_id = travel_to
+                                    target_room.players.add(player.name)
+                                    self.broadcast_to_room(old_room_id, f"{player.name} leaves.", player.name)
+                                    self.broadcast_to_room(travel_to, f"{player.name} arrives.", player.name)
+                                    did_travel = True
+                            response_text = self._format_npc_dialogue(npc.name, outcome)
+                        else:
+                            response_text = self._format_npc_dialogue(npc.name, raw)
+                    else:
+                        set_flag_name = raw.get("set_flag")
+                        if set_flag_name and hasattr(player, "set_flag"):
+                            player.set_flag(set_flag_name)
+                            self.save_player_data(player)
+                        travel_to = raw.get("travel_to_room_id")
+                        if travel_to:
+                            target_room = self.get_room(travel_to)
+                            if target_room:
+                                old_room_id = player.room_id
+                                old_room = self.get_room(old_room_id)
+                                if old_room:
+                                    old_room.players.discard(player.name)
+                                player.room_id = travel_to
+                                target_room.players.add(player.name)
+                                self.broadcast_to_room(old_room_id, f"{player.name} leaves.", player.name)
+                                self.broadcast_to_room(travel_to, f"{player.name} arrives.", player.name)
+                                did_travel = True
+                        response_text = self._format_npc_dialogue(npc.name, raw)
                 else:
                     response_text = self._format_npc_dialogue(npc.name, raw)
                 self.send_to_player(player, response_text)
                 self.broadcast_to_room(player.room_id, f"{player.name} talks with {npc.name}.", player.name)
+                if did_travel:
+                    try:
+                        self.look_command(player, [])
+                    except Exception:
+                        pass
 
                 # Special handling for certain keywords
                 if hasattr(npc, 'is_merchant') and npc.is_merchant:
@@ -5836,6 +6074,9 @@ First, choose your race (affects attributes and starting skills):
             elif cmd == "drop":
                 drop_command(self, player, args)
                 command_handled = True
+            elif cmd == "loot":
+                self.loot_command(player, args)
+                command_handled = True
             elif cmd == "use" and args and len(args) > 0 and args[0].lower() == "maneuver":
                 use_maneuver_command(self, player, args[1:])
                 command_handled = True
@@ -5954,6 +6195,9 @@ First, choose your race (affects attributes and starting skills):
                 command_handled = True
             elif cmd == "drop":
                 self.drop_command(player, args)
+                command_handled = True
+            elif cmd == "loot":
+                self.loot_command(player, args)
                 command_handled = True
             elif cmd == "use":
                 # Check if it's "use maneuver" first

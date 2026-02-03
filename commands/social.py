@@ -133,17 +133,79 @@ def talk_command(game, player, args):
         
         if matched_key:
             raw = npc.keywords[matched_key]
+            did_travel = False
             if isinstance(raw, dict):
-                set_flag_name = raw.get("set_flag")
-                if set_flag_name and hasattr(player, "set_flag"):
-                    player.set_flag(set_flag_name)
-                    if hasattr(game, "save_player_data"):
-                        game.save_player_data(player)
-                response_text = game._format_npc_dialogue(npc.name, raw) if hasattr(game, "_format_npc_dialogue") else (f"{npc.name} says: {raw.get('say', raw.get('response', ''))}")
+                sc = raw.get("skill_check")
+                if isinstance(sc, dict):
+                    skill = (sc.get("skill") or "Persuading").lower()
+                    difficulty_dc = sc.get("difficulty")
+                    difficulty_mod = sc.get("difficulty_mod")
+                    modifier = getattr(game, "_skill_check_modifier", lambda p: 0)(player)
+                    if difficulty_dc is not None and isinstance(difficulty_dc, (int, float)):
+                        effective = player.get_effective_skill(skill, 0)
+                        if effective >= difficulty_dc:
+                            success = True
+                        else:
+                            roll = player.roll_skill_check(skill, (difficulty_mod or 0) + modifier)
+                            success = roll["result"] in ("success", "critical")
+                    else:
+                        mod = difficulty_mod if difficulty_mod is not None else sc.get("difficulty", 0)
+                        roll = player.roll_skill_check(skill, mod + modifier)
+                        success = roll["result"] in ("success", "critical")
+                    if hasattr(player, "check_skill_advancement"):
+                        player.check_skill_advancement(skill, success)
+                    outcome = sc.get("on_success") if success else sc.get("on_fail")
+                    if isinstance(outcome, dict):
+                        set_flag_name = outcome.get("set_player_flag")
+                        if set_flag_name and hasattr(player, "set_flag"):
+                            player.set_flag(set_flag_name)
+                            if hasattr(game, "save_player_data"):
+                                game.save_player_data(player)
+                        travel_to = outcome.get("travel_to_room_id")
+                        if travel_to:
+                            target_room = game.get_room(travel_to)
+                            if target_room:
+                                old_room_id = player.room_id
+                                old_room = game.get_room(old_room_id)
+                                if old_room:
+                                    old_room.players.discard(player.name)
+                                player.room_id = travel_to
+                                target_room.players.add(player.name)
+                                game.broadcast_to_room(old_room_id, f"{player.name} leaves.", player.name)
+                                game.broadcast_to_room(travel_to, f"{player.name} arrives.", player.name)
+                                did_travel = True
+                        response_text = game._format_npc_dialogue(npc.name, outcome) if hasattr(game, "_format_npc_dialogue") else (f"{npc.name} says: {outcome.get('say', '')}")
+                    else:
+                        response_text = game._format_npc_dialogue(npc.name, raw) if hasattr(game, "_format_npc_dialogue") else (f"{npc.name} says: {raw.get('say', raw.get('response', ''))}")
+                else:
+                    set_flag_name = raw.get("set_flag")
+                    if set_flag_name and hasattr(player, "set_flag"):
+                        player.set_flag(set_flag_name)
+                        if hasattr(game, "save_player_data"):
+                            game.save_player_data(player)
+                    travel_to = raw.get("travel_to_room_id")
+                    if travel_to:
+                        target_room = game.get_room(travel_to)
+                        if target_room:
+                            old_room_id = player.room_id
+                            old_room = game.get_room(old_room_id)
+                            if old_room:
+                                old_room.players.discard(player.name)
+                            player.room_id = travel_to
+                            target_room.players.add(player.name)
+                            game.broadcast_to_room(old_room_id, f"{player.name} leaves.", player.name)
+                            game.broadcast_to_room(travel_to, f"{player.name} arrives.", player.name)
+                            did_travel = True
+                    response_text = game._format_npc_dialogue(npc.name, raw) if hasattr(game, "_format_npc_dialogue") else (f"{npc.name} says: {raw.get('say', raw.get('response', ''))}")
             else:
                 response_text = game._format_npc_dialogue(npc.name, raw) if hasattr(game, "_format_npc_dialogue") else f"{npc.name} says: {raw}"
             game.send_to_player(player, response_text)
             game.broadcast_to_room(player.room_id, f"{player.name} talks with {npc.name}.", player.name)
+            if did_travel and hasattr(game, "look_command"):
+                try:
+                    game.look_command(player, [])
+                except Exception:
+                    pass
 
             # Special handling for certain keywords
             if hasattr(npc, 'is_merchant') and npc.is_merchant:
