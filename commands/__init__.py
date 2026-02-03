@@ -3,6 +3,7 @@
 This package contains all command handlers organized by category:
 - movement: look, move, go
 - inventory: inventory, get, drop, use, equip, unequip
+- loot: loot, handle_take_from_corpse (used by get_command for take from corpse)
 - combat: attack, join, disengage, use_maneuver
 - social: say, who, talk
 - shop: buy, sell, repair, list, shop
@@ -12,6 +13,7 @@ This package contains all command handlers organized by category:
 
 from .movement import look_command, move_command
 from .inventory import inventory_command, get_command, drop_command, use_command, equip_command, unequip_command
+from .loot import loot_command, handle_take_from_corpse
 from .combat import attack_command, join_combat_command, disengage_command, use_maneuver_command
 from .social import say_command, who_command, talk_command
 from .shop import buy_command, sell_command, repair_command, shop_list_command
@@ -23,6 +25,8 @@ __all__ = [
     'look_command', 'move_command',
     # Inventory
     'inventory_command', 'get_command', 'drop_command', 'use_command', 'equip_command', 'unequip_command',
+    # Loot
+    'loot_command', 'handle_take_from_corpse',
     # Combat
     'attack_command', 'join_combat_command', 'disengage_command', 'use_maneuver_command',
     # Social

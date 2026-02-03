@@ -68,6 +68,7 @@ try:
     from commands import (
         look_command, move_command,
         inventory_command, get_command, drop_command, use_command, equip_command, unequip_command,
+        loot_command, handle_take_from_corpse,
         attack_command, join_combat_command, disengage_command, use_maneuver_command,
         say_command, who_command, talk_command,
         buy_command, sell_command, repair_command, shop_list_command,
@@ -2910,11 +2911,14 @@ that scales by tier, and offers attribute bonuses and starting skills.
             self.broadcast_to_room(player.room_id, f"{player.name} takes something from the {obj.get('name', 'object')}.", player.name)
             return
 
-        # B3/loot_system: take <item> from <corpse>
-        if " from " in item_name and self.runtime_state:
+        # B3/loot_system: take <item> from <corpse> — delegated to commands.loot when available
+        if " from " in item_name:
             part, source = item_name.split(" from ", 1)
             part, source = part.strip(), source.strip()
-            if part and source:
+            if part and source and COMMANDS_AVAILABLE:
+                if handle_take_from_corpse(self, player, room, part, source):
+                    return
+            elif part and source and self.runtime_state:
                 for inst in self.runtime_state.get_entities_in_room(room.room_id):
                     if inst.get("entity_type") != "corpse":
                         continue
@@ -2926,7 +2930,6 @@ that scales by tier, and offers attribute bonuses and starting skills.
                         return
                     loot = inst.get("loot") or {}
                     items_list = loot.get("items") or []
-                    # Match item by name
                     for i, entry in enumerate(items_list):
                         item_id = entry.get("item_id")
                         item = self.items.get(item_id) if item_id else None
@@ -2946,7 +2949,6 @@ that scales by tier, and offers attribute bonuses and starting skills.
                         self.broadcast_to_room(player.room_id, f"{player.name} takes {item_display} from the corpse.", player.name)
                         self._maybe_remove_empty_corpse(inst)
                         return
-                    # Try "coins" if part matches
                     if part in ("coin", "coins", "gold", "money") and loot.get("coins", 0) > 0:
                         amount = loot["coins"]
                         player.gold = getattr(player, "gold", 0) + amount
@@ -3365,43 +3367,24 @@ that scales by tier, and offers attribute bonuses and starting skills.
             timer = self.runtime_state.get_spawn_timer(room_id, spawn_group_id)
             alive = max(0, timer.get("alive_count", 1) - 1)
             self.runtime_state.update_spawn_timer(room_id, spawn_group_id, alive_count=alive)
-        # Loot system (docs/loot_system.md): generate loot once, spawn corpse entity
+        # Loot system (docs/loot_system.md): generate loot once, spawn corpse entity via systems.loot_system
         if template:
             loot_config = getattr(template, "loot", None) or {"entries": getattr(template, "loot_table", []) or []}
             has_loot = loot_config.get("entries") or loot_config.get("guaranteed") or loot_config.get("chance") or loot_config.get("tables") or loot_config.get("coins")
             if has_loot:
                 try:
-                    from systems.loot_system import generate_loot
+                    from systems.loot_system import prepare_corpse_entity
                 except ImportError:
-                    generate_loot = None
-                if generate_loot:
+                    prepare_corpse_entity = None
+                if prepare_corpse_entity:
                     loot_tables = getattr(self, "loot_tables", {}) or {}
-                    generated = generate_loot(loot_config, loot_tables, self.items)
-                    now = time.time()
-                    decay_seconds = loot_config.get("decay_seconds", 600)
-                    decays_at = now + decay_seconds
-                    corpse_template_id = loot_config.get("corpse_template_id") or template_id or "corpse"
-                    corpse_name = f"corpse of {target_name}"
-                    corpse_desc = "Something glints among the remains."
-                    ownership_window = 60  # seconds contributors-only
-                    ownership = {
-                        "mode": "contributors",
-                        "allowed_player_ids": [attacker_name] if attacker_name else [],
-                        "expires_at": now + ownership_window,
-                    }
-                    corpse_id = self.runtime_state.create_entity_instance(
-                        corpse_template_id,
-                        "corpse",
-                        expires_at=decays_at,
-                        name=corpse_name,
-                        description=corpse_desc,
-                        source_creature_id=template_id or "",
-                        created_at=now,
-                        decays_at=decays_at,
-                        flags=["lootable"],
-                        ownership=ownership,
-                        loot=generated,
+                    opts = prepare_corpse_entity(
+                        loot_config, template_id or "", target_name, attacker_name,
+                        loot_tables, self.items, now=time.time(),
                     )
+                    template_id_arg = opts.pop("template_id")
+                    entity_type = opts.pop("entity_type")
+                    corpse_id = self.runtime_state.create_entity_instance(template_id_arg, entity_type, **opts)
                     if corpse_id:
                         self.runtime_state.place_entity(corpse_id, room_id)
                         self.broadcast_to_room(room_id, f"{target_name} collapses. A corpse remains.")
@@ -6075,7 +6058,7 @@ First, choose your race (affects attributes and starting skills):
                 drop_command(self, player, args)
                 command_handled = True
             elif cmd == "loot":
-                self.loot_command(player, args)
+                loot_command(self, player, args)
                 command_handled = True
             elif cmd == "use" and args and len(args) > 0 and args[0].lower() == "maneuver":
                 use_maneuver_command(self, player, args[1:])

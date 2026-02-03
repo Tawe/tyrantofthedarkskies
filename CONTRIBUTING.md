@@ -44,6 +44,16 @@ contributions/
 └── weapon_modifiers/ # Material modifiers
 ```
 
+## 🧪 Testing
+
+Unit tests live in the `tests/` directory and cover core modules (e.g. `systems/loot_system`, `commands/loot`). Run them from the project root:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+Optional: install pytest and run with `pytest tests/ -v`. Dev dependencies: `pip install -r requirements-dev.txt`.
+
 ## 📋 Format Guidelines
 
 ### Rooms

@@ -116,3 +116,49 @@ def _roll_loot_table(table: Dict) -> tuple:
             return (item_id, count)
         r -= w
     return (entries[-1].get("item_id") or entries[-1].get("item"), 1)
+
+
+def prepare_corpse_entity(
+    loot_config: Dict,
+    template_id: str,
+    target_name: str,
+    attacker_name: Optional[str],
+    loot_tables: Optional[Dict[str, Dict]] = None,
+    items_dict: Optional[Dict] = None,
+    now: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Build kwargs for creating a corpse entity after a creature is defeated.
+    Caller does: opts = prepare_corpse_entity(...); corpse_id = runtime_state.create_entity_instance(
+        opts.pop("template_id"), opts.pop("entity_type"), **opts
+    ); runtime_state.place_entity(corpse_id, room_id).
+    """
+    import time as _time
+    now = now if now is not None else _time.time()
+    loot_tables = loot_tables or {}
+    items_dict = items_dict or {}
+    generated = generate_loot(loot_config, loot_tables, items_dict)
+    decay_seconds = loot_config.get("decay_seconds", 600)
+    decays_at = now + decay_seconds
+    corpse_template_id = loot_config.get("corpse_template_id") or template_id or "corpse"
+    corpse_name = f"corpse of {target_name}"
+    corpse_desc = "Something glints among the remains."
+    ownership_window = 60
+    ownership = {
+        "mode": "contributors",
+        "allowed_player_ids": [attacker_name] if attacker_name else [],
+        "expires_at": now + ownership_window,
+    }
+    return {
+        "template_id": corpse_template_id,
+        "entity_type": "corpse",
+        "expires_at": decays_at,
+        "name": corpse_name,
+        "description": corpse_desc,
+        "source_creature_id": template_id or "",
+        "created_at": now,
+        "decays_at": decays_at,
+        "flags": ["lootable"],
+        "ownership": ownership,
+        "loot": generated,
+    }
