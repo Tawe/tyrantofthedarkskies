@@ -210,10 +210,13 @@ def look_npc(game, player, npc):
         if equipped_items:
             output += f"Equipped: {', '.join(equipped_items)}\n"
         
-    # Show dialogue hint
+    # Show dialogue hint (emote + say per docs/emote_tone_volume_system.md)
     if hasattr(npc, 'dialogue') and npc.dialogue:
         output += f"\n{game.format_header('Greeting:')}\n"
-        output += f"{npc.dialogue[0]}\n"
+        if hasattr(game, "_format_npc_dialogue"):
+            output += game._format_npc_dialogue(npc.name, npc.dialogue[0]) + "\n"
+        else:
+            output += f"{npc.dialogue[0]}\n"
         
     # Show available keywords if merchant
     if hasattr(npc, 'is_merchant') and npc.is_merchant:

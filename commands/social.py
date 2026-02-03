@@ -100,12 +100,10 @@ def talk_command(game, player, args):
     
     # Get keyword (rest of args)
     if len(args) < 2:
-        # Show greeting/dialogue
-        if hasattr(npc, 'dialogue') and npc.dialogue:
-            greeting = npc.dialogue[0] if npc.dialogue else f"{npc.name} looks at you expectantly."
-            game.send_to_player(player, f"{npc.name} says: \"{greeting}\"")
-        else:
-            game.send_to_player(player, f"{npc.name} looks at you expectantly.")
+        # Show greeting/dialogue (emote + say per docs/emote_tone_volume_system.md)
+        greeting = npc.dialogue[0] if (hasattr(npc, 'dialogue') and npc.dialogue) else None
+        text = getattr(game, "_format_npc_dialogue", lambda n, d: f"{n} says: {d}" if isinstance(d, str) else (f"{n} looks at you expectantly." if d is None else f"{n} says: {d.get('say', d.get('response', ''))}"))(npc.name, greeting)
+        game.send_to_player(player, text)
         return
     
     keyword = " ".join(args[1:]).lower().strip()
@@ -136,15 +134,15 @@ def talk_command(game, player, args):
         if matched_key:
             raw = npc.keywords[matched_key]
             if isinstance(raw, dict):
-                response = raw.get("response", "")
                 set_flag_name = raw.get("set_flag")
                 if set_flag_name and hasattr(player, "set_flag"):
                     player.set_flag(set_flag_name)
                     if hasattr(game, "save_player_data"):
                         game.save_player_data(player)
+                response_text = game._format_npc_dialogue(npc.name, raw) if hasattr(game, "_format_npc_dialogue") else (f"{npc.name} says: {raw.get('say', raw.get('response', ''))}")
             else:
-                response = raw
-            game.send_to_player(player, f"{npc.name} says: \"{response}\"")
+                response_text = game._format_npc_dialogue(npc.name, raw) if hasattr(game, "_format_npc_dialogue") else f"{npc.name} says: {raw}"
+            game.send_to_player(player, response_text)
             game.broadcast_to_room(player.room_id, f"{player.name} talks with {npc.name}.", player.name)
 
             # Special handling for certain keywords
@@ -166,11 +164,9 @@ def talk_command(game, player, args):
 
     # No keyword match — if they only said the rest of the NPC's name (e.g. "talk old lorek"), show greeting
     if keyword and keyword in npc.name.lower():
-        if hasattr(npc, 'dialogue') and npc.dialogue:
-            greeting = npc.dialogue[0] if npc.dialogue else f"{npc.name} looks at you expectantly."
-            game.send_to_player(player, f"{npc.name} says: \"{greeting}\"")
-        else:
-            game.send_to_player(player, f"{npc.name} looks at you expectantly.")
+        greeting = npc.dialogue[0] if (hasattr(npc, 'dialogue') and npc.dialogue) else None
+        text = game._format_npc_dialogue(npc.name, greeting) if hasattr(game, "_format_npc_dialogue") else (f"{npc.name} looks at you expectantly." if greeting is None else f"{npc.name} says: {greeting}")
+        game.send_to_player(player, text)
         return
 
     game.send_to_player(player, f"{npc.name} doesn't seem to respond to that.")

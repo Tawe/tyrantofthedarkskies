@@ -2452,10 +2452,10 @@ that scales by tier, and offers attribute bonuses and starting skills.
             if equipped_items:
                 output += f"Equipped: {', '.join(equipped_items)}\n"
         
-        # Show dialogue hint
+        # Show dialogue hint (emote + say per docs/emote_tone_volume_system.md)
         if hasattr(npc, 'dialogue') and npc.dialogue:
             output += f"\n{self.format_header('Greeting:')}\n"
-            output += f"{npc.dialogue[0]}\n"
+            output += self._format_npc_dialogue(npc.name, npc.dialogue[0]) + "\n"
         
         # Show available keywords if merchant
         if hasattr(npc, 'is_merchant') and npc.is_merchant:
@@ -4189,6 +4189,18 @@ that scales by tier, and offers attribute bonuses and starting skills.
             return 0.85  # Friendly: -15%
         else:
             return 0.70  # Trusted: -30%
+
+    def _format_npc_dialogue(self, npc_name, dialogue):
+        """Format NPC dialogue per docs/emote_tone_volume_system.md. dialogue: string or { emote?, say, tone?, volume? }. No quotes around say."""
+        if dialogue is None:
+            return f"{npc_name} looks at you expectantly."
+        if isinstance(dialogue, str):
+            return f"{npc_name} says: {dialogue}"
+        say = dialogue.get("say") or dialogue.get("response") or ""
+        emote = (dialogue.get("emote") or "").strip()
+        if emote:
+            return f"{npc_name} {emote}.\n{npc_name} says: {say}"
+        return f"{npc_name} says: {say}"
     
     def talk_command(self, player, args):
         """Talk to an NPC using keyword-based dialogue"""
@@ -4267,12 +4279,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
 
         # Get keyword (rest of args)
         if len(args) < 2:
-            # Show greeting/dialogue
-            if hasattr(npc, 'dialogue') and npc.dialogue:
-                greeting = npc.dialogue[0] if npc.dialogue else f"{npc.name} looks at you expectantly."
-                self.send_to_player(player, f"{npc.name} says: \"{greeting}\"")
-            else:
-                self.send_to_player(player, f"{npc.name} looks at you expectantly.")
+            # Show greeting/dialogue (emote + say per docs/emote_tone_volume_system.md)
+            greeting = npc.dialogue[0] if (hasattr(npc, 'dialogue') and npc.dialogue) else None
+            self.send_to_player(player, self._format_npc_dialogue(npc.name, greeting))
             return
         
         keyword = " ".join(args[1:]).lower().strip()
@@ -4303,14 +4312,15 @@ that scales by tier, and offers attribute bonuses and starting skills.
             if matched_key:
                 raw = npc.keywords[matched_key]
                 if isinstance(raw, dict):
-                    response = raw.get("response", "")
                     set_flag_name = raw.get("set_flag")
                     if set_flag_name and hasattr(player, "set_flag"):
                         player.set_flag(set_flag_name)
                         self.save_player_data(player)
+                    # Support emote/say object (docs/emote_tone_volume_system.md) or legacy "response"
+                    response_text = self._format_npc_dialogue(npc.name, raw)
                 else:
-                    response = raw
-                self.send_to_player(player, f"{npc.name} says: \"{response}\"")
+                    response_text = self._format_npc_dialogue(npc.name, raw)
+                self.send_to_player(player, response_text)
                 self.broadcast_to_room(player.room_id, f"{player.name} talks with {npc.name}.", player.name)
 
                 # Special handling for certain keywords
@@ -4332,11 +4342,8 @@ that scales by tier, and offers attribute bonuses and starting skills.
 
         # No keyword match — if they only said the rest of the NPC's name (e.g. "talk old lorek"), show greeting
         if keyword and keyword in npc.name.lower():
-            if hasattr(npc, 'dialogue') and npc.dialogue:
-                greeting = npc.dialogue[0] if npc.dialogue else f"{npc.name} looks at you expectantly."
-                self.send_to_player(player, f"{npc.name} says: \"{greeting}\"")
-            else:
-                self.send_to_player(player, f"{npc.name} looks at you expectantly.")
+            greeting = npc.dialogue[0] if (hasattr(npc, 'dialogue') and npc.dialogue) else None
+            self.send_to_player(player, self._format_npc_dialogue(npc.name, greeting))
             return
 
         self.send_to_player(player, f"{npc.name} doesn't seem to respond to that.")

@@ -38,8 +38,8 @@
     "adventurers_guild": 1
   },
   "dialogue": [
-    "Bram sizes you up. \"If you want a [drink], speak up. If you want [food], pay first. If you want [work], the board's west.\"",
-    "\"New face.\" Bram wipes the counter. \"You need [room], [drink], or [work]. If you're here for [rumors], buy something.\""
+    { "emote": "sizes you up", "say": "If you want a [drink], speak up. If you want [food], pay first. If you want [work], the board's west." },
+    { "emote": "wipes the counter", "say": "New face. You need [room], [drink], or [work]. If you're here for [rumors], buy something." }
   ],
   "inventory": [],
   "shop_inventory": [
@@ -62,11 +62,11 @@
     "sleep": "\"Couple bunks upstairs. You pay, you keep quiet, you wake up alive.\"",
     "bed": "\"Couple bunks upstairs. You pay, you keep quiet, you wake up alive.\"",
     "rest": "\"Couple bunks upstairs. You pay, you keep quiet, you wake up alive.\"",
-    "work": "Bram nods west. \"Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors].\"",
-    "jobs": "Bram nods west. \"Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors].\"",
-    "contracts": "Bram nods west. \"Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors].\"",
-    "guild": "Bram nods west. \"Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors].\"",
-    "board": "Bram nods west. \"Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors].\"",
+    "work": { "emote": "nods west", "say": "Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors]." },
+    "jobs": { "emote": "nods west", "say": "Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors]." },
+    "contracts": { "emote": "nods west", "say": "Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors]." },
+    "guild": { "emote": "nods west", "say": "Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors]." },
+    "board": { "emote": "nods west", "say": "Guild board's through there. Easy jobs vanish fast. The good ones come with [rumors]." },
     "rumors": "\"Depends where you listen. The [docks] tell one story. [New Cove] tells another.\"",
     "news": "\"Depends where you listen. The [docks] tell one story. [New Cove] tells another.\"",
     "gossip": "\"Depends where you listen. The [docks] tell one story. [New Cove] tells another.\"",
