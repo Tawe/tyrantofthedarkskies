@@ -1076,6 +1076,51 @@ that scales by tier, and offers attribute bonuses and starting skills.
         npc.pursuit_mode = behaviors.get("pursue", "short")  # for runtime create_entity_instance
         return npc
 
+    def _schedule_blocks_from_contribution(self, schedule_data):
+        """Convert contribution schedule format (rules + active_between_hours + rooms) to scheduler format (list of start/end/room_id)."""
+        if schedule_data is None:
+            return []
+        if isinstance(schedule_data, list):
+            return schedule_data
+        rules = schedule_data.get("rules") if isinstance(schedule_data, dict) else None
+        if not rules:
+            return []
+        blocks = []
+        for rule in rules:
+            hours = rule.get("active_between_hours")
+            rooms = rule.get("rooms") or []
+            if not hours or len(hours) < 2 or not rooms:
+                continue
+            start_h, end_h = int(hours[0]), int(hours[1])
+            for room_id in rooms:
+                blocks.append({
+                    "start": f"{start_h:02d}:00",
+                    "end": f"{end_h:02d}:00",
+                    "room_id": room_id,
+                })
+        return blocks
+
+    def _apply_interaction_contribution(self, npc, npc_data):
+        """Convert contribution 'interaction' (greeting + keywords array) to game dialogue + keywords dict so they override Firebase."""
+        interaction = npc_data.get("interaction")
+        if not isinstance(interaction, dict):
+            return
+        greeting = interaction.get("greeting")
+        if isinstance(greeting, list) and greeting:
+            npc.dialogue = greeting
+        kw_list = interaction.get("keywords")
+        if isinstance(kw_list, list):
+            npc.keywords = {}
+            for item in kw_list:
+                key = item.get("key")
+                text = item.get("text")
+                if key is None or text is None:
+                    continue
+                npc.keywords[key] = text
+                for alias in item.get("aliases") or []:
+                    if alias:
+                        npc.keywords[alias] = text
+
     def _overlay_npcs_from_contributions(self):
         """Overlay contribution NPC JSON onto existing NPCs (e.g. from Firebase) so merchant inventory etc. come from local files."""
         root = os.path.dirname(os.path.abspath(__file__))
@@ -1094,6 +1139,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     continue
                 npc = self.npcs[npc_id]
                 npc.from_dict(npc_data)
+                self._apply_interaction_contribution(npc, npc_data)
                 if hasattr(npc, "level") and npc.level:
                     npc.tier = npc.get_tier()
                 if "shop_inventory" in npc_data:
@@ -1105,7 +1151,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 if "faction" in npc_data:
                     npc.faction = npc_data["faction"]
                 if self.npc_scheduler and npc_data.get("schedule"):
-                    self.npc_scheduler.add_npc_schedule(npc_id, npc_data["schedule"])
+                    blocks = self._schedule_blocks_from_contribution(npc_data["schedule"])
+                    if blocks:
+                        self.npc_scheduler.add_npc_schedule(npc_id, blocks)
             except Exception as e:
                 print(f"Error overlaying NPC {filename}: {e}")
 
@@ -1142,6 +1190,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                 npc_data = json.load(f)
                                 npc = NPC(npc_data["npc_id"], npc_data["name"], npc_data["description"])
                                 npc.from_dict(npc_data)
+                                self._apply_interaction_contribution(npc, npc_data)
                                 
                                 # Set tier based on level if not already set
                                 if hasattr(npc, 'level') and npc.level:
@@ -1173,7 +1222,9 @@ that scales by tier, and offers attribute bonuses and starting skills.
                                     npc.faction = npc_data["faction"]
 
                                 if self.npc_scheduler and npc_data.get("schedule"):
-                                    self.npc_scheduler.add_npc_schedule(npc.npc_id, npc_data["schedule"])
+                                    blocks = self._schedule_blocks_from_contribution(npc_data["schedule"])
+                                    if blocks:
+                                        self.npc_scheduler.add_npc_schedule(npc.npc_id, blocks)
 
                                 self.npcs[npc.npc_id] = npc
                                 

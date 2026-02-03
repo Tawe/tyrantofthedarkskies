@@ -1,28 +1,121 @@
 {
   "npc_id": "old_lorek_docks",
   "name": "Old Lorek",
-  "description": "An old fisherman with a salt-crusted beard sits near the edge of the docks, staring out toward the open sea. His small skiff rocks gently beside him.",
-  "schedule": [
-    { "start": "00:00", "end": "12:00", "room_id": "docks" },
-    { "start": "12:00", "end": "23:59", "room_id": "docks" }
-  ],
-  "health": 50,
-  "max_health": 50,
-  "combat_role": null,
-  "tier": "Low",
+  "title": "an old fisherman",
+  "type": "npc",
+  "role": "civilian",
+  "tier": "low",
   "level": 2,
   "exp_value": 0,
-  "is_hostile": false,
-  "dialogue": [
-    "Old Lorek squints at you. \"You look like the sort that doesn't scare easy.\" Ask him about [cave], [spirits], or [boat].",
-    "If you're here for work, there's plenty. If you're here for trouble, take it elsewhere."
-  ],
-  "keywords": {
-    "cave": "Found a cave along the coast. Low mouth. Smells wrong. I won't step inside—something in there ain't for men like me.",
-    "spirits": "Call 'em spirits if you want. Whispers. Cold spots. The feeling of being watched.",
-    "boat": {
-      "response": "Aye… I could take you. But I'm not risking my hide for nothing. You want me to row you there… say the word.",
-      "set_flag": "quest_sunken_cave_unlocked"
+
+  "location": {
+    "default_room_id": "docks",
+    "home_room_id": "docks"
+  },
+
+  "appearance": {
+    "short_description": "An old fisherman with a salt-crusted beard sits at the edge of the docks, boots dangling over the water beside a narrow skiff.",
+    "on_enter_room_text": [
+      "An old fisherman stares out over the water, unmoving despite the noise of the docks."
+    ]
+  },
+
+  "schedule": {
+    "timezone": "ingame",
+    "rules": [
+      {
+        "name": "morning_to_evening",
+        "active_between_hours": [6, 20],
+        "rooms": ["docks"],
+        "behavior": "idle"
+      }
+    ]
+  },
+
+  "combat": {
+    "will_fight": false,
+    "calls_for_help": true,
+    "tags": ["noncombatant"]
+  },
+
+  "interaction": {
+    "greeting": [
+      {
+        "emote": "squints up at you",
+        "say": "You’ve got the look of someone who doesn’t turn back easy."
+      },
+      {
+        "emote": "spits into the water",
+        "say": "If you’re just here to stare, plenty of sea for that."
+      }
+    ],
+
+    "keywords": [
+      {
+        "key": "cave",
+        "aliases": ["coast", "shore", "hole"],
+        "text": {
+          "emote": "scratches his beard",
+          "say": "Found it rowing the coast. Low mouth. Water pooling inside. Didn’t feel like a place meant for breathing folk."
+        }
+      },
+
+      {
+        "key": "spirits",
+        "aliases": ["whispers", "ghosts"],
+        "text": {
+          "emote": "lowers his voice",
+          "say": "Call them what you like. Cold air where there shouldn’t be. Sounds that stop when you listen. I won’t set foot past the entrance."
+        }
+      },
+
+      {
+        "key": "boat",
+        "aliases": ["skiff", "row", "ride"],
+        "text": {
+          "emote": "glances at the skiff, then back at you",
+          "say": "I can row you there. I won’t go inside. And I won’t do it for someone who’s likely to panic halfway."
+        }
+      },
+
+      {
+        "key": "take me",
+        "aliases": ["go", "row", "bring me"],
+        "requires": { "flag_not_set": "quest_sunken_cave_started" },
+        "text": {
+          "emote": "studies you for a long moment",
+          "say": "Words are cheap. Convince me you won’t freeze up when the water turns quiet."
+        },
+        "skill_check": {
+          "skill": "Persuading",
+          "difficulty": 9,
+          "on_success": {
+            "emote": "nods once",
+            "say": "Fine. Grab your gear. I’ll put you ashore and wait. Shout if you want back.",
+            "set_player_flag": "quest_sunken_cave_started",
+            "travel_to_room_id": "cave_outside"
+          },
+          "on_fail": {
+            "emote": "shakes his head",
+            "say": "No. I’ve pulled too many fools out of the water already."
+          }
+        }
+      }
+    ],
+
+    "fallback": {
+      "on_unknown_keyword": {
+        "emote": "shrugs",
+        "say": "That’s all I’ve got."
+      }
     }
+  },
+
+  "memory": {
+    "enabled": true,
+    "per_player_fields": [
+      "times_spoken",
+      "flags"
+    ]
   }
 }

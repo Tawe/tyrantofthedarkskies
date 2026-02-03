@@ -1,7 +1,7 @@
 {
   "room_id": "docks",
   "name": "The Docks",
-  "description": "Constantly active with ships arriving and departing, the docks are the lifeblood of New Cove. Ropes creak, hulls groan, and sailors shout over the endless motion of the sea. This is where you first arrived on the Refound Continent. An old fisherman sometimes watches from near his skiff. (Try: talk lorek)\n\nNear a mooring post sits a rain-dark barrel stuffed with driftwood sticks. A few look loose, as if they could be pulled free or knocked loose with little effort.",
+  "description": "Ships crowd the piers, coming and going in a steady rhythm of creaking rope and shouted orders. Tar, salt, and wet wood cling to everything. Sailors weave between crates and coils of line while the sea slaps the pilings below.\n\nNear a mooring post sits a rain-dark barrel packed with driftwood sticks—cheap, straight, and almost begging to be taken by anyone who showed up unarmed.\n\nOff to one side, an old fisherman watches the water beside a narrow skiff, as if waiting for a question he doesn’t want to answer.",
   "exits": {
     "west": "black_anchor_common",
     "northwest": "governors_house",
@@ -9,46 +9,37 @@
   },
   "items": [],
   "npcs": [
-    "dockmaster"
+    "dockmaster",
+    "old_lorek_docks"
   ],
-  "flags": [
-    "safe",
-    "public"
-  ],
+  "flags": ["safe", "public"],
   "combat_tags": [],
   "region_id": "new_cove_town",
   "weather_exposure": "coastal",
+
   "interactables": [
-    {
-      "object_id": "lorek_boat",
-      "name": "Old Lorek's skiff",
-      "keywords": ["lorek", "skiff", "boat", "cave", "take", "row", "coast"],
-      "examine_text": "An old fisherman's skiff. Old Lorek sits nearby—he might row you to the cave along the coast if you ask.",
-      "actions": {
-        "talk": {
-          "keywords": ["boat", "cave", "take", "row", "go"],
-          "result": {
-            "travel_to_room_id": "cave_outside",
-            "required_flag": "quest_sunken_cave_unlocked",
-            "required_fail_text": "He looks unconvinced. (You might persuade him.) Old Lorek hasn't agreed to take you yet. (Try: talk lorek cave, then talk lorek boat)"
-          },
-          "success_text": "Old Lorek nods once. \"Alright then. Get in. I'll drop you at the mouth.\""
-        }
-      }
-    },
     {
       "object_id": "barrel_of_sticks",
       "name": "barrel of sticks",
       "keywords": ["barrel", "sticks", "stick", "driftwood"],
-      "examine_text": "A battered barrel packed with salt-bleached driftwood. The sticks are straight enough to swing, splintery enough to regret.",
+      "examine_text": "A battered barrel stuffed with salt-bleached driftwood. Some pieces are straight enough to swing like a club. (Hint: you can try to [take stick].)",
       "actions": {
         "examine": true,
         "take": {
           "gives_item": "weapon_stick_wood",
           "limit_per_player": 1,
           "cooldown_seconds": 600,
-          "empty_text": "The barrel's been picked clean for now."
+          "empty_text": "Only scraps and splinters remain for now."
         }
+      }
+    },
+    {
+      "object_id": "lorek_skiff",
+      "name": "narrow skiff",
+      "keywords": ["skiff", "boat", "lorek", "fisherman"],
+      "examine_text": "A narrow fishing skiff tied off tight. The old fisherman sits close enough that you could speak to him. (Hint: try [talk lorek].)",
+      "actions": {
+        "examine": true
       }
     }
   ]
