@@ -319,6 +319,20 @@ class CombatManager:
                 self.broadcast_func(room_id, f"{entity_name} attacks {target} but misses!")
             # Schedule next attack after this one (hit or miss); interval = BAT × speed (combat.md)
             combat.next_attack_at[entity_name] = time.time() + self._get_turn_timeout(entity)
+
+        if result and action_type == "maneuver":
+            # Broadcast maneuver result and delay next auto-attack (maneuver uses the turn)
+            if result.get("damage") is not None:
+                damage = result.get("damage", 0)
+                target = result.get("target", "target")
+                maneuver_name = result.get("maneuver_name", "maneuver")
+                if damage > 0:
+                    self.broadcast_func(room_id, f"{entity_name} uses {maneuver_name} on {target} for {damage} damage!")
+                else:
+                    self.broadcast_func(room_id, f"{entity_name} uses {maneuver_name} on {target} but misses!")
+            elif result.get("success") and result.get("message"):
+                self.broadcast_func(room_id, f"{entity_name} {result['message'].lower()}")
+            combat.next_attack_at[entity_name] = time.time() + self._get_turn_timeout(entity)
         
         if result and result.get("damage", 0) > 0:
             target_name = result.get("target")
@@ -458,6 +472,10 @@ class CombatManager:
                 target, damage, damage_type, items_dict,
                 broadcast_func=self.broadcast_func, room_id=combat.room_id
             )
+        # Brace maneuver: reduce incoming damage (e.g. half) for one attack
+        if getattr(target, "brace_next_attack", False):
+            damage = max(1, damage // 2)
+            setattr(target, "brace_next_attack", False)
 
         # Apply damage
         target.health -= damage
@@ -480,8 +498,118 @@ class CombatManager:
         }
     
     def _process_maneuver(self, combat, entity, maneuver_data):
-        """Process a maneuver action (placeholder for future implementation)."""
-        return {"success": False, "message": "Maneuver system not yet implemented"}
+        """Process a maneuver action: pay cost, resolve damage or defensive effects (docs/maneuver.md)."""
+        maneuver = maneuver_data.get("maneuver") or {}
+        target_name = maneuver_data.get("target")
+        maneuver_id = maneuver_data.get("maneuver_id", "")
+        effects = maneuver.get("effects") or {}
+        success_effect = (effects.get("success") or "").lower()
+
+        # Pay stamina cost
+        cost = maneuver.get("cost") or {}
+        stamina_cost = cost.get("stamina", 0)
+        if stamina_cost > 0 and hasattr(entity, "stamina"):
+            if (getattr(entity, "stamina", 0) or 0) < stamina_cost:
+                return {"success": False, "message": "Not enough stamina."}
+            entity.stamina = max(0, (entity.stamina or 0) - stamina_cost)
+
+        # Defensive: e.g. Brace (damage_reduction_next_attack)
+        if "damage_reduction" in success_effect or "damage_reduction_next_attack" in success_effect:
+            setattr(entity, "brace_next_attack", True)
+            return {"success": True, "message": "You brace for the next attack.", "maneuver_id": maneuver_id}
+
+        # Damage-dealing maneuver: resolve hit and apply damage (same model as attack)
+        if "damage" in success_effect and target_name:
+            target_info = None
+            for name, info in combat.combatants.items():
+                if name == target_name or (target_name.lower() in name.lower()):
+                    target_info = info
+                    break
+            if not target_info:
+                return {"success": False, "message": "Target not in combat."}
+            target = target_info["entity"]
+
+            items_dict = self.items_dict or {}
+            equipped_weapon = None
+            damage_type = "bludgeoning"
+            if hasattr(entity, "equipped") and "weapon" in entity.equipped and items_dict:
+                weapon_id = entity.equipped["weapon"]
+                w = items_dict.get(weapon_id)
+                if w and getattr(w, "is_weapon", lambda: False)():
+                    equipped_weapon = w
+                    damage_type = getattr(w, "damage_type", "bludgeoning")
+
+            # Accuracy vs Dodging
+            if hasattr(entity, "roll_skill_check"):
+                accuracy_check = entity.roll_skill_check("fighting")
+                attacker_effective = accuracy_check.get("effective_skill", 50)
+            else:
+                attacker_effective = 50
+                accuracy_check = {"result": "success", "roll": random.randint(1, 100)}
+            if hasattr(target, "roll_skill_check"):
+                dodge_check = target.roll_skill_check("dodging")
+                defender_effective = dodge_check.get("effective_skill", 50)
+            else:
+                defender_effective = 50
+                dodge_check = {"result": "success", "roll": random.randint(1, 100)}
+
+            attacker_roll = accuracy_check.get("roll", random.randint(1, 100))
+            defender_roll = dodge_check.get("roll", random.randint(1, 100))
+            hit = False
+            is_critical = False
+            is_glancing = False
+            # Increased crit chance for e.g. desperate_strike
+            bonus_crit = 0.15 if "increased_crit_chance" in success_effect else 0
+
+            if attacker_roll <= attacker_effective and (attacker_roll < defender_roll or defender_roll > defender_effective):
+                hit = True
+                if accuracy_check.get("result") == "critical":
+                    is_critical = True
+                elif bonus_crit > 0 and random.random() < bonus_crit:
+                    is_critical = True
+                elif equipped_weapon and random.random() <= getattr(equipped_weapon, "get_effective_crit_chance", lambda: 0.01)():
+                    is_critical = True
+                elif not equipped_weapon and random.random() <= 0.01:
+                    is_critical = True
+                if defender_roll <= defender_effective and defender_roll >= defender_effective * 0.8:
+                    is_glancing = True
+
+            if not hit:
+                return {"success": False, "message": "Maneuver missed.", "target": target_name, "damage": 0}
+
+            if equipped_weapon:
+                damage_min, damage_max = equipped_weapon.get_effective_damage()
+                base_damage = random.randint(damage_min, damage_max)
+                if hasattr(entity, "get_attribute_bonus"):
+                    base_damage += entity.get_attribute_bonus("physical")
+            else:
+                base_damage = 1
+            if is_critical:
+                damage = base_damage * 2
+            elif is_glancing:
+                damage = max(1, base_damage // 2)
+            else:
+                damage = base_damage
+
+            if items_dict:
+                damage = apply_armor_damage_reduction(
+                    target, damage, damage_type, items_dict,
+                    broadcast_func=self.broadcast_func, room_id=combat.room_id
+                )
+            target.health = max(0, (getattr(target, "health", 0) - damage))
+            if hasattr(target, "brace_next_attack"):
+                setattr(target, "brace_next_attack", False)
+
+            return {
+                "success": True,
+                "damage": damage,
+                "target": target_name,
+                "critical": is_critical,
+                "glancing": is_glancing,
+                "maneuver_id": maneuver_id,
+                "maneuver_name": maneuver.get("name", maneuver_id),
+            }
+        return {"success": True, "message": "Maneuver used.", "maneuver_id": maneuver_id}
     
     def _process_move(self, combat, entity, move_data):
         """Process a move action (placeholder for future implementation)."""

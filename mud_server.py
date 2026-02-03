@@ -4041,16 +4041,41 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if self.combat_manager:
             combat = self.combat_manager.get_combat_state(player.room_id)
             if combat and combat.is_active and player.name in combat.combatants:
-                # Use in combat (would integrate with turn system)
-                self.send_to_player(player, f"You prepare to use {maneuver_name}...")
-                # Note: Combat maneuver integration pending
-            else:
-                # Use out of combat
-                self.send_to_player(player, f"You use {maneuver_name}.")
-                # Note: Maneuver effects implementation pending
-        else:
+                target_name = combat.combatants[player.name].get("target")
+                if not target_name or target_name not in combat.combatants:
+                    self.send_to_player(player, "You have no valid target for this maneuver.")
+                    return
+                maneuver = self.maneuvers.get(maneuver_id, matched_maneuver) or matched_maneuver
+                result = self.combat_manager.process_turn(
+                    player.room_id,
+                    player.name,
+                    "maneuver",
+                    {"maneuver_id": maneuver_id, "maneuver": maneuver, "target": target_name},
+                )
+                if result is None:
+                    self.send_to_player(player, "You can't use that maneuver right now.")
+                    return
+                if not result.get("success"):
+                    self.send_to_player(player, result.get("message", "The maneuver fails."))
+                    return
+                if result.get("damage") is not None:
+                    dmg = result.get("damage", 0)
+                    tgt = result.get("target", "target")
+                    mn = result.get("maneuver_name", maneuver_name)
+                    if dmg > 0:
+                        if result.get("critical"):
+                            self.send_to_player(player, f"Your {mn} critically hits {tgt} for {dmg} damage!")
+                        else:
+                            self.send_to_player(player, f"Your {mn} hits {tgt} for {dmg} damage!")
+                    else:
+                        self.send_to_player(player, f"Your {mn} misses {tgt}.")
+                else:
+                    self.send_to_player(player, result.get("message", f"You use {maneuver_name}."))
+                return
+            # Use out of combat
             self.send_to_player(player, f"You use {maneuver_name}.")
-            # Note: Maneuver effects implementation pending
+            return
+        self.send_to_player(player, f"You use {maneuver_name}.")
     
     def quests_command(self, player, args):
         """Show player's active quests"""
