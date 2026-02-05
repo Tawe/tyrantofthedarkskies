@@ -31,16 +31,16 @@
   "outlooks": {},
   "faction_outlooks": {},
   "dialogue": [
-    "*Landar glances up, her slitted pupils adjusting to your presence* You're not here for the quiet, are you? Sit if you want. I've got a story about the [unflooded sea] if you're curious.",
-    "*She taps a claw against her cup* Strange tides out there. Strange things buried in the silt."
+    { "emote": "glances up, her slitted pupils adjusting to your presence", "say": "You're not here for the quiet, are you? Sit if you want. I've got a story about the [unflooded sea] if you're curious." },
+    { "emote": "taps a claw against her cup", "say": "Strange tides out there. Strange things buried in the silt." }
   ],
   "keywords": {
-    "unflooded sea": "*Landar leans closer, lowering her voice* I saw someone out there last night. Near the old coral beds. They were burying something in a [mound] of silt. Looked heavy. Looked valuable.",
-    "mound": "*She shrugs, scales rippling* A low rise of packed silt, just sitting there like someone wanted it found eventually. Or never found at all. Either way, someone with a [shovel] could [dig] it up. Not me though — I don't dig in other people's graves.",
-    "dig": "*Landar waves a webbed hand dismissively* Digging's honest work, I suppose. Hard on the back though. You'd need a [shovel] and some strength to get through that packed silt.",
-    "shovel": "*She gestures vaguely toward the common room* Jalia sells tools at her shop. Shovels, ropes, the things people need when they go poking around places they shouldn't. Tell her I sent you. Or don't. She doesn't care either way.",
+    "unflooded sea": { "emote": "leans closer, lowering her voice", "say": "I saw someone out there last night. Near the old coral beds. They were burying something in a [mound] of silt. Looked heavy. Looked valuable." },
+    "mound": { "emote": "shrugs, scales rippling", "say": "A low rise of packed silt, just sitting there like someone wanted it found eventually. Or never found at all. Either way, someone with a [shovel] could [dig] it up. Not me though — I don't dig in other people's graves." },
+    "dig": { "emote": "waves a webbed hand dismissively", "say": "Digging's honest work, I suppose. Hard on the back though. You'd need a [shovel] and some strength to get through that packed silt." },
+    "shovel": { "emote": "gestures vaguely toward the common room", "say": "Jalia sells tools at her shop. Shovels, ropes, the things people need when they go poking around places they shouldn't. Tell her I sent you. Or don't. She doesn't care either way." },
     "story": "Stories cost drinks. But this one I'll give you free — something's buried in the [unflooded sea]. Something someone wanted hidden.",
-    "sharah": "*Her eyes narrow slightly* My people came from deeper waters than this. The Unflooded Sea is shallow to us. But it has its secrets all the same."
+    "sharah": { "emote": "narrows her eyes slightly", "say": "My people came from deeper waters than this. The Unflooded Sea is shallow to us. But it has its secrets all the same." }
   },
   "inventory": [],
   "is_merchant": false,
