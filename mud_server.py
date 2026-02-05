@@ -146,10 +146,7 @@ class MudGame:
         
         # Logging (initialize before admin config to allow logging)
         try:
-            try:
-                from utils.logger import SecurityLogger
-            except ImportError:
-                from logger import SecurityLogger
+            from utils.logger import SecurityLogger
             self.logger = SecurityLogger()
         except ImportError:
             # Fallback if logger module not available
@@ -191,20 +188,9 @@ class MudGame:
                 self.items  # Pass items dict for weapon lookups
             )
         except ImportError:
-            # Fallback to root import for backward compatibility
-            try:
-                from combat_system import CombatManager, apply_armor_damage_reduction
-                self.apply_armor_damage_reduction = apply_armor_damage_reduction
-                self.combat_manager = CombatManager(
-                    self,
-                    self.get_room,
-                    self.broadcast_to_room,
-                    self.items
-                )
-            except ImportError:
-                self.combat_manager = None
-                self.apply_armor_damage_reduction = None
-                print("Warning: CombatManager not available. Combat features disabled.")
+            self.combat_manager = None
+            self.apply_armor_damage_reduction = None
+            print("Warning: CombatManager not available. Combat features disabled.")
         
         # Exploration tracking (for EXP rewards)
         self.explored_rooms = defaultdict(set)  # {player_name: set of room_ids}
@@ -226,13 +212,8 @@ class MudGame:
             from systems.quest_system import QuestManager
             self.quest_manager = QuestManager()
         except ImportError:
-            # Fallback to root import for backward compatibility
-            try:
-                from quest_system import QuestManager
-                self.quest_manager = QuestManager()
-            except ImportError:
-                self.quest_manager = None
-                print("Warning: QuestManager not available. Quest features disabled.")
+            self.quest_manager = None
+            print("Warning: QuestManager not available. Quest features disabled.")
         
         # Time system
         self._world_time_save_stop = threading.Event()
@@ -253,26 +234,11 @@ class MudGame:
             self._world_time_save_thread = threading.Thread(target=_periodic_save_world_time, daemon=True)
             self._world_time_save_thread.start()
         except ImportError:
-            # Fallback to root import for backward compatibility
-            try:
-                from time_system import WorldTime, NPCScheduler, StoreHours
-                self.world_time = WorldTime()
-                self.npc_scheduler = NPCScheduler(self.world_time)
-                self.store_hours = StoreHours(self.world_time)
-                self.load_world_time()
-                def _periodic_save_world_time():
-                    interval = 300
-                    while not self._world_time_save_stop.wait(timeout=interval):
-                        if self.world_time:
-                            self.save_world_time()
-                self._world_time_save_thread = threading.Thread(target=_periodic_save_world_time, daemon=True)
-                self._world_time_save_thread.start()
-            except ImportError:
-                self.world_time = None
-                self.npc_scheduler = None
-                self.store_hours = None
-                self._world_time_save_stop = None
-                print("Warning: Time system not available. Time features disabled.")
+            self.world_time = None
+            self.npc_scheduler = None
+            self.store_hours = None
+            self._world_time_save_stop = None
+            print("Warning: Time system not available. Time features disabled.")
 
         # Weather and encounter systems (modular; docs/weather_system.md, docs/random_encounters.md)
         try:
