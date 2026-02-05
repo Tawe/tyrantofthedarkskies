@@ -1357,15 +1357,20 @@ that scales by tier, and offers attribute bonuses and starting skills.
     def _resolve_room_spawns(self, room_id: str) -> None:
         """B1: On room entry, check spawn_groups and spawn creature instances if eligible (present encounters)."""
         if not self.runtime_state:
+            print(f"[spawn] No runtime_state for room {room_id}", flush=True)
             return
         room = self.get_room(room_id)
         if not room:
+            print(f"[spawn] Room {room_id} not found", flush=True)
             return
         spawn_groups = getattr(room, "spawn_groups", []) or []
+        if not spawn_groups:
+            return  # No spawn groups, normal case
         for sg in spawn_groups:
             spawn_id = sg.get("spawn_id") or sg.get("template_id")
             template_id = sg.get("template_id", spawn_id)
             if not spawn_id or not template_id:
+                print(f"[spawn] Missing spawn_id or template_id in {room_id}", flush=True)
                 continue
             max_alive = sg.get("max_alive", 1)
             cooldown_seconds = sg.get("cooldown_seconds", 120.0)
@@ -1373,9 +1378,17 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 room_id, spawn_id, max_alive=max_alive, cooldown_seconds=cooldown_seconds
             )
             if not consumed:
+                # Check why not consumed - get current timer state
+                timer = self.runtime_state.get_spawn_timer(room_id, spawn_id)
+                import time
+                now = time.time()
+                alive = timer.get("alive_count", 0)
+                next_at = timer.get("next_spawn_at", 0)
+                print(f"[spawn] {spawn_id} not eligible: alive={alive}/{max_alive}, next_spawn_at={next_at}, now={now}, wait={next_at - now:.0f}s", flush=True)
                 continue
             template = self.npcs.get(template_id)
             if not template:
+                print(f"[spawn] Template {template_id} not found in npcs!", flush=True)
                 continue
             hp_max = getattr(template, "max_health", getattr(template, "health", 10))
             role_raw = getattr(template, "combat_role", None) or getattr(template, "role", "Minion")
@@ -1392,6 +1405,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 pursuit_mode=getattr(template, "pursuit_mode", None),
             )
             self.runtime_state.place_entity(instance_id, room_id)
+            print(f"[spawn] Spawned {template_id} as {instance_id} in {room_id}", flush=True)
 
     def load_npc_schedules(self):
         """Load NPC schedules from Firebase"""
