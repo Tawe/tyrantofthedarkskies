@@ -381,6 +381,12 @@ def move_command(game, player, direction):
     old_room_id = player.room_id
     new_room = game.get_room(new_room_id)
 
+    # Handle clear_flag - remove flag from player when using this exit
+    if isinstance(exit_data, dict) and exit_data.get("clear_flag"):
+        flag_to_clear = exit_data["clear_flag"]
+        if hasattr(player, "set_flag"):
+            player.set_flag(flag_to_clear, False)
+
     if not new_room:
         game.send_to_player(player, game.format_error("That direction leads to an unknown place."))
         return

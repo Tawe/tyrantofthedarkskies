@@ -5,11 +5,9 @@
   "weather_exposure": "indoor",
   "description": "The rough cave walls smooth into worked stone. A fitted stone wall blocks the way, a circular hollow set at its center like a missing keystone. One panel looks slightly misaligned; a thin draft touches the air.",
   "exits": {
-    "west": "cave_drawings",
-    "north": {
-      "target": "cave_kings_tomb",
-      "required_flag": "puzzle_sunken_tomb_unlocked",
-      "blocked_text": "The wall blocks the passage. A circular hollow in the center might accept something."
+    "west": {
+      "target": "cave_drawings",
+      "clear_flag": "tomb_door_open"
     }
   },
   "hidden_exits": [
@@ -17,6 +15,11 @@
       "direction": "east",
       "target": "cave_coral_idol_chamber",
       "reveal_flag": "secret_tomb_opening_idol_revealed"
+    },
+    {
+      "direction": "north",
+      "target": "cave_kings_tomb",
+      "reveal_flag": "tomb_door_open"
     }
   ],
   "items": [],
@@ -32,9 +35,9 @@
       "actions": {
         "place": {
           "required_item": "quest_coral_idol",
-          "consume_item": true,
-          "set_flag": "puzzle_sunken_tomb_unlocked",
-          "success_text": "The idol fits the hollow. The wall grinds aside, revealing the tomb beyond."
+          "consume_item": false,
+          "set_flag": "tomb_door_open",
+          "success_text": "The idol fits the hollow. The wall grinds aside, revealing the tomb beyond. A passage opens to the north."
         }
       }
     },
