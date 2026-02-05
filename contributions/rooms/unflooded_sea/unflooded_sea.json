@@ -1,7 +1,7 @@
 {
   "room_id": "unflooded_sea",
   "name": "The Unflooded Sea",
-  "description": "Beyond the palisade lies the Unflooded Sea - a vast plain of ancient ocean floor that has risen to sea level. Twisted coral-like growths called Rift Forests rise in the distance, and vast fields of hardened kelp fronds wave in the wind. This is the primary early exploration zone, where strange tides flow with no water, and unmapped ruins lie buried beneath silt and coral stone.",
+  "description": "Beyond the palisade lies the Unflooded Sea - a vast plain of ancient ocean floor that has risen to sea level. Twisted coral-like growths called Rift Forests rise in the distance, and vast fields of hardened kelp fronds wave in the wind. This is the primary early exploration zone, where strange tides flow with no water, and unmapped ruins lie buried beneath silt and coral stone.\n\nThe silt isn't uniform here. One low mound looks recently disturbed, as if the ground never quite settled.",
   "exits": {
     "north": "wooden_wall",
     "east": "rift_forest",
@@ -16,5 +16,39 @@
   "combat_tags": [],
   "zone": "unflooded_sea",
   "region_id": "unflooded_sea",
-  "weather_exposure": "outdoor"
+  "weather_exposure": "outdoor",
+  "interactables": [
+    {
+      "object_id": "mound_of_silt",
+      "name": "mound of silt",
+      "keywords": ["mound", "silt", "pile", "disturbed", "ground"],
+      "examine_text": "The silt here is packed and recently turned. Tool marks are faintly visible beneath the surface. With a shovel, you could try to dig it up.",
+      "actions": {
+        "search": {
+          "skill": "investigating",
+          "difficulty_mod": 5,
+          "limit_per_player": 1,
+          "already_done_text": "You've already examined this mound closely.",
+          "success": {
+            "success_text": "Looking closer, you spot tool marks beneath the silt. Someone buried something here recently. With a shovel, you could dig this mound."
+          },
+          "fail_text": "The silt shifts under your boots, but the ground here is hard to read."
+        },
+        "dig": {
+          "requires_equipped_tag": "shovel",
+          "no_tool_text": "You scrape at the packed silt with your hands. You'll need a shovel to do this properly.",
+          "attribute": "physical",
+          "difficulty": 12,
+          "limit_per_player": 1,
+          "already_done_text": "You've already dug up what was buried here.",
+          "success": {
+            "gives_item": "magic_amulet_forgotten_sea_god",
+            "set_flag": "found_mound_treasure",
+            "success_text": "Your shovel bites into the silt. After a few heavy scoops, you strike cloth-wrapped leather. You uncover a small sack containing an ancient amulet."
+          },
+          "fail_text": "You dig, but the silt collapses back in. You'll need stronger effort to get deeper."
+        }
+      }
+    }
+  ]
 }

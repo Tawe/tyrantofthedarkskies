@@ -34,6 +34,7 @@ class Item:
         self.weight = 0
         self.armor_template_id = None
         self.armor_modifier_id = None
+        self.tags = []
 
     def is_armor(self):
         return self.item_type == "armor" or self.armor_type is not None

@@ -1,0 +1,12 @@
+{
+  "item_id": "magic_amulet_forgotten_sea_god",
+  "name": "Amulet of the Forgotten Sea God",
+  "description": "A tarnished silver amulet depicting a half-remembered deity — part wave, part serpent, part something older. Salt has worn the details smooth, but when held close, you can almost hear distant tides.",
+  "item_type": "accessory",
+  "slot": "neck",
+  "value": 150,
+  "tags": ["magical", "accessory", "amulet"],
+  "stats": {
+    "spiritual_bonus": 1
+  }
+}

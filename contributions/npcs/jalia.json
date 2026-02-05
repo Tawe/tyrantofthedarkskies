@@ -51,7 +51,8 @@
     "oil_flask",
     "repair_kit",
     "healing_potion",
-    "travel_rations"
+    "travel_rations",
+    "tool_shovel_basic"
   ],
   "keywords": {
     "goods": "Basic supplies. Nothing fancy, nothing cursed. Weapons that won't snap, armor that won't rot, and tools that still work after a week in the Unflooded Sea. Use 'list' or 'shop' to see what I have.",

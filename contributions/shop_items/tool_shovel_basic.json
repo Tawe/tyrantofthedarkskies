@@ -1,0 +1,17 @@
+{
+  "item_id": "tool_shovel_basic",
+  "name": "Shovel",
+  "description": "A sturdy iron shovel with a wooden handle. Good for digging through silt, sand, or loose earth. Can be wielded as an improvised weapon.",
+  "item_type": "weapon",
+  "weapon_template_id": "improvised",
+  "value": 35,
+  "tags": ["tool", "shovel"],
+  "stats": {},
+  "damage_min": 2,
+  "damage_max": 5,
+  "damage_type": "bludgeoning",
+  "hands": 2,
+  "speed_cost": 1.2,
+  "crit_chance": 0.02,
+  "max_durability": 40
+}

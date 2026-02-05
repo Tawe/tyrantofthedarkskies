@@ -1,0 +1,48 @@
+{
+  "npc_id": "landar_booths",
+  "name": "Landar",
+  "description": "A Sharah woman sits alone in a shadowed booth, her scaled skin catching what little light reaches this corner. She nurses a drink with long, webbed fingers, her eyes distant as if watching something beyond the walls. Old salt crusts the edges of her cloak.",
+  "health": 40,
+  "max_health": 40,
+  "mana": 20,
+  "max_mana": 20,
+  "stamina": 40,
+  "max_stamina": 40,
+  "attributes": {
+    "physical": 9,
+    "mental": 11,
+    "spiritual": 12,
+    "social": 10
+  },
+  "skills": {
+    "investigating": 10,
+    "swimming": 14
+  },
+  "combat_role": null,
+  "tier": "Low",
+  "level": 2,
+  "exp_value": 0,
+  "known_maneuvers": [],
+  "active_maneuvers": [],
+  "equipped": {},
+  "is_hostile": false,
+  "combat_state": "Observing",
+  "loot_table": [],
+  "outlooks": {},
+  "faction_outlooks": {},
+  "dialogue": [
+    "*Landar glances up, her slitted pupils adjusting to your presence* You're not here for the quiet, are you? Sit if you want. I've got a story about the [unflooded sea] if you're curious.",
+    "*She taps a claw against her cup* Strange tides out there. Strange things buried in the silt."
+  ],
+  "keywords": {
+    "unflooded sea": "*Landar leans closer, lowering her voice* I saw someone out there last night. Near the old coral beds. They were burying something in a [mound] of silt. Looked heavy. Looked valuable.",
+    "mound": "*She shrugs, scales rippling* A low rise of packed silt, just sitting there like someone wanted it found eventually. Or never found at all. Either way, someone with a [shovel] could [dig] it up. Not me though — I don't dig in other people's graves.",
+    "dig": "*Landar waves a webbed hand dismissively* Digging's honest work, I suppose. Hard on the back though. You'd need a [shovel] and some strength to get through that packed silt.",
+    "shovel": "*She gestures vaguely toward the common room* Jalia sells tools at her shop. Shovels, ropes, the things people need when they go poking around places they shouldn't. Tell her I sent you. Or don't. She doesn't care either way.",
+    "story": "Stories cost drinks. But this one I'll give you free — something's buried in the [unflooded sea]. Something someone wanted hidden.",
+    "sharah": "*Her eyes narrow slightly* My people came from deeper waters than this. The Unflooded Sea is shallow to us. But it has its secrets all the same."
+  },
+  "inventory": [],
+  "is_merchant": false,
+  "faction": null
+}

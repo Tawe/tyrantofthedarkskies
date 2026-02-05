@@ -8,7 +8,8 @@
   "items": [],
   "npcs": [
     "hooded_patron",
-    "magitium_agent"
+    "magitium_agent",
+    "landar_booths"
   ],
   "ambient_lines": [
     "A low conversation in the far booth stops, then resumes in quieter tones.",

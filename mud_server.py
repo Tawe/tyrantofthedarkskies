@@ -85,6 +85,7 @@ try:
         buy_command, sell_command, repair_command, shop_list_command,
         stats_command, skills_command, maneuvers_command, quests_command, quest_command,
         time_command, set_time_command, help_command, inspect_command,
+        dig_command,
         create_room_command, edit_room_command, delete_room_command, list_rooms_command,
         goto_command, create_weapon_command, list_weapons_command
     )
@@ -5652,6 +5653,9 @@ First, choose your race (affects attributes and starting skills):
             elif cmd == "place" and args:
                 self.place_command(player, args)
                 command_handled = True
+            elif cmd == "dig":
+                dig_command(self, player, args)
+                command_handled = True
             elif cmd == "drop":
                 drop_command(self, player, args)
                 command_handled = True
@@ -5773,6 +5777,9 @@ First, choose your race (affects attributes and starting skills):
                 command_handled = True
             elif cmd == "place" and args:
                 self.place_command(player, args)
+                command_handled = True
+            elif cmd == "dig":
+                self.send_to_player(player, "Dig command requires external command module.")
                 command_handled = True
             elif cmd == "drop":
                 self.drop_command(player, args)
