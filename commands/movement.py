@@ -58,7 +58,11 @@ def look_command(game, player, args):
     flag_descriptions = getattr(room, "flag_descriptions", []) or []
     for fd in flag_descriptions:
         flag = fd.get("flag")
-        if flag and getattr(player, "has_flag", lambda n: False)(flag):
+        not_flag = fd.get("not_flag")
+        # Must have flag (if specified) AND must not have not_flag (if specified)
+        has_required = not flag or getattr(player, "has_flag", lambda n: False)(flag)
+        has_excluded = not_flag and getattr(player, "has_flag", lambda n: False)(not_flag)
+        if has_required and not has_excluded:
             output += fd.get("text", "")
     # When spawned creatures are present, append lore-friendly creature_presence from room (no creature list)
     if getattr(game, "runtime_state", None):

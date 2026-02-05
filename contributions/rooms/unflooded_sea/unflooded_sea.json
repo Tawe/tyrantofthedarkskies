@@ -5,6 +5,7 @@
   "flag_descriptions": [
     {
       "flag": "heard_landar_rumor",
+      "not_flag": "found_mound_treasure",
       "text": "\n\nThe silt isn't uniform here. One low mound looks recently disturbed, as if the ground never quite settled."
     }
   ],
