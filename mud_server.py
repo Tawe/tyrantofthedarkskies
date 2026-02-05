@@ -2690,10 +2690,16 @@ that scales by tier, and offers attribute bonuses and starting skills.
             gives_item = success_block.get("gives_item")
             if gives_item and gives_item in self.items:
                 player.inventory.append(gives_item)
+                if hasattr(self, "save_player_data"):
+                    self.save_player_data(player)
                 item = self.items.get(gives_item)
                 item_display = self.format_item(item.name) if item else gives_item
                 self.send_to_player(player, self.format_success(success_block.get("success_text") or f"You find {item_display}."))
                 self.broadcast_to_room(player.room_id, f"{player.name} finds something.", player.name)
+            elif gives_item:
+                # Item specified but not found in registry - log error
+                print(f"[search] Warning: Item '{gives_item}' not found in items registry")
+                self.send_to_player(player, self.format_success(success_block.get("success_text") or "You find something, but it crumbles to dust."))
             else:
                 set_flag_name = success_block.get("set_flag")
                 if set_flag_name and hasattr(player, "set_flag"):

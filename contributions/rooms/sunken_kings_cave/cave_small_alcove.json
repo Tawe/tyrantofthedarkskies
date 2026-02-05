@@ -15,7 +15,7 @@
     {
       "object_id": "bone_pile",
       "name": "bone pile",
-      "keywords": ["bones", "bone", "pile", "remains"],
+      "keywords": ["bones", "bone", "pile", "remains", "alcove", "floor", "ground"],
       "examine_text": "Cracked ribs and small skull fragments. Something sharper is buried beneath.",
       "actions": {
         "search": {

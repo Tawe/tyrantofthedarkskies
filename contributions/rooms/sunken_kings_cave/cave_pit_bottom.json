@@ -22,14 +22,20 @@
   "interactables": [
     {
       "object_id": "rare_snail",
-      "name": "rare sea snail",
-      "keywords": ["snail", "sea snail", "rare snail"],
-      "examine_text": "A rare sea snail, its shell patterned like ink in water.",
+      "name": "pit floor",
+      "keywords": ["floor", "silt", "shells", "pit", "ground", "snail"],
+      "examine_text": "Old shells and silt gather here. Something slow and glossy clings to the stone.",
       "actions": {
-        "take": {
-          "gives_item": "trade_rare_sea_snail",
+        "search": {
+          "skill": "investigating",
+          "difficulty_mod": 0,
           "limit_per_player": 1,
-          "empty_text": "The snail has retreated into its shell."
+          "already_done_text": "You've already found what was hidden here.",
+          "success": {
+            "gives_item": "trade_rare_sea_snail",
+            "success_text": "Among the shells and silt, you find a rare sea snail with a shell patterned like ink in water."
+          },
+          "fail_text": "You sift through the shells but find nothing of interest."
         }
       }
     },
