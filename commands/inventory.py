@@ -31,18 +31,33 @@ def inventory_command(game, player, args):
 
 
 def get_command(game, player, args):
-    """Pick up an item from the room."""
+    """Pick up an item from the room or take from a corpse."""
     if not args:
         game.send_to_player(player, "Get what?")
         return
-        
-    item_name = " ".join(args).lower()
+
     room = game.get_room(player.room_id)
-    
+
     if not room:
         game.send_to_player(player, "You are in an unknown location.")
         return
-    
+
+    # Check for "take X from Y" syntax (for corpses)
+    full_input = " ".join(args).lower()
+    if " from " in full_input:
+        parts = full_input.split(" from ", 1)
+        item_part = parts[0].strip()
+        source_part = parts[1].strip()
+
+        # Try to take from corpse
+        from .loot import handle_take_from_corpse
+        if handle_take_from_corpse(game, player, room, item_part, source_part):
+            return
+        # If not a corpse, fall through to regular get
+
+    item_name = full_input
+
+    # First check room items
     for item_id in room.items[:]:
         item = game.items.get(item_id)
         if item and item_name in item.name.lower():
@@ -52,7 +67,26 @@ def get_command(game, player, args):
             game.send_to_player(player, game.format_success(f"You pick up {item_display}."))
             game.broadcast_to_room(player.room_id, f"{player.name} picks up {item_display}.", player.name)
             return
-            
+
+    # Not in room - check corpses (so "take gems" works without "from corpse")
+    from .loot import handle_take_from_corpse, can_loot_corpse
+    if game.runtime_state:
+        for inst in game.runtime_state.get_entities_in_room(room.room_id):
+            if inst.get("entity_type") != "corpse":
+                continue
+            if not can_loot_corpse(game, player, inst):
+                continue
+            # Check if this corpse has the item
+            loot = inst.get("loot") or {}
+            for entry in loot.get("items") or []:
+                item_id = entry.get("item_id")
+                item = game.items.get(item_id) if item_id else None
+                if item and item_name in item.name.lower():
+                    # Found it - use handle_take_from_corpse
+                    corpse_name = inst.get("name", "corpse").lower()
+                    if handle_take_from_corpse(game, player, room, item_name, corpse_name):
+                        return
+
     game.send_to_player(player, "You don't see that here.")
 
 

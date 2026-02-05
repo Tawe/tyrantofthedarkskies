@@ -100,11 +100,25 @@ def loot_command(game, player, args):
     if not corpses:
         game.send_to_player(player, "There are no corpses here to loot.")
         return
-    # loot all
+    # loot all [corpse_name]
     if args and args[0].lower() == "all":
-        corpse = corpses[0] if len(corpses) == 1 else None
-        if not corpse:
-            game.send_to_player(player, "Which corpse? Name one (e.g. loot corpse of X).")
+        corpse = None
+        if len(args) > 1:
+            # "loot all king" or "loot all drowned"
+            target_name = " ".join(args[1:]).lower()
+            for inst in corpses:
+                name = (inst.get("name") or "").lower()
+                if target_name in name or name in target_name:
+                    corpse = inst
+                    break
+            if not corpse:
+                game.send_to_player(player, f"You don't see a corpse matching '{target_name}' here.")
+                return
+        elif len(corpses) == 1:
+            corpse = corpses[0]
+        else:
+            names = [inst.get("name", "a corpse") for inst in corpses]
+            game.send_to_player(player, f"Which corpse? Try: loot all <name>. Corpses here: {', '.join(names)}")
             return
         if not can_loot_corpse(game, player, corpse):
             game.send_to_player(player, "You hesitate. This kill isn't yours to claim yet.")

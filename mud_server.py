@@ -1378,13 +1378,6 @@ that scales by tier, and offers attribute bonuses and starting skills.
                 room_id, spawn_id, max_alive=max_alive, cooldown_seconds=cooldown_seconds
             )
             if not consumed:
-                # Check why not consumed - get current timer state
-                timer = self.runtime_state.get_spawn_timer(room_id, spawn_id)
-                import time
-                now = time.time()
-                alive = timer.get("alive_count", 0)
-                next_at = timer.get("next_spawn_at", 0)
-                print(f"[spawn] {spawn_id} not eligible: alive={alive}/{max_alive}, next_spawn_at={next_at}, now={now}, wait={next_at - now:.0f}s", flush=True)
                 continue
             template = self.npcs.get(template_id)
             if not template:
@@ -2540,6 +2533,36 @@ that scales by tier, and offers attribute bonuses and starting skills.
                         return
                     self.send_to_player(player, "You don't see that in the corpse.")
                     return
+
+        # B5: Try to take from any corpse (so "take gems" works without "from corpse")
+        if self.runtime_state:
+            for inst in self.runtime_state.get_entities_in_room(room.room_id):
+                if inst.get("entity_type") != "corpse":
+                    continue
+                if not self._can_loot_corpse(player, inst):
+                    continue
+                loot = inst.get("loot") or {}
+                items_list = loot.get("items") or []
+                for i, entry in enumerate(items_list):
+                    item_id = entry.get("item_id")
+                    item = self.items.get(item_id) if item_id else None
+                    if not item or item_name not in item.name.lower():
+                        continue
+                    count = entry.get("count", 1)
+                    if count <= 1:
+                        items_list.pop(i)
+                    else:
+                        entry["count"] = count - 1
+                    if not hasattr(player, "inventory"):
+                        player.inventory = []
+                    player.inventory.append(item_id)
+                    self.runtime_state.update_entity_instance(inst["instance_id"], loot={"rolled": True, "coins": loot.get("coins", 0), "items": items_list})
+                    item_display = self.format_item(item.name)
+                    self.send_to_player(player, self.format_success(f"You take {item_display} from the corpse."))
+                    self.broadcast_to_room(player.room_id, f"{player.name} takes {item_display} from the corpse.", player.name)
+                    self._maybe_remove_empty_corpse(inst)
+                    return
+
         self.send_to_player(player, "You don't see that here.")
 
     def _can_loot_corpse(self, player, corpse_inst):
@@ -2580,11 +2603,25 @@ that scales by tier, and offers attribute bonuses and starting skills.
         if not corpses:
             self.send_to_player(player, "There are no corpses here to loot.")
             return
-        # loot all
+        # loot all [corpse_name]
         if args and args[0].lower() == "all":
-            corpse = corpses[0] if len(corpses) == 1 else None
-            if not corpse:
-                self.send_to_player(player, "Which corpse? Name one (e.g. loot corpse of X).")
+            corpse = None
+            if len(args) > 1:
+                # "loot all king" or "loot all drowned"
+                target_name = " ".join(args[1:]).lower()
+                for inst in corpses:
+                    name = (inst.get("name") or "").lower()
+                    if target_name in name or name in target_name:
+                        corpse = inst
+                        break
+                if not corpse:
+                    self.send_to_player(player, f"You don't see a corpse matching '{target_name}' here.")
+                    return
+            elif len(corpses) == 1:
+                corpse = corpses[0]
+            else:
+                names = [inst.get("name", "a corpse") for inst in corpses]
+                self.send_to_player(player, f"Which corpse? Try: loot all <name>. Corpses here: {', '.join(names)}")
                 return
             if not self._can_loot_corpse(player, corpse):
                 self.send_to_player(player, "You hesitate. This kill isn't yours to claim yet.")
@@ -2861,8 +2898,12 @@ that scales by tier, and offers attribute bonuses and starting skills.
 
 {self.format_header('Inventory & Items:')}
 {self.format_command('inventory')} or {self.format_command('i')} - Check your inventory
-{self.format_command('get')} or {self.format_command('take')} <item> - Pick up an item from the room (or take <item> from <corpse>)
-{self.format_command('loot')} [all] [corpse] - List lootable corpses, show contents, or take all from a corpse
+{self.format_command('get')} or {self.format_command('take')} <item> - Pick up an item (checks room then corpses)
+{self.format_command('take')} <item> from <corpse> - Take specific item from a corpse
+{self.format_command('loot')} - List lootable corpses in the room
+{self.format_command('loot')} <corpse> - Show contents of a specific corpse
+{self.format_command('loot all')} - Take everything from a corpse (if only one)
+{self.format_command('loot all')} <corpse> - Take everything from a specific corpse
 {self.format_command('drop')} <item> - Drop an item from your inventory
 {self.format_command('use')} <item> - Use a consumable item (potions, etc.)
 {self.format_command('equip')} <item> or {self.format_command('equip')} <slot> <item> - Equip a weapon or armor
@@ -2908,6 +2949,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
 {self.format_command('create_weapon')} <template> [modifier] [item_id] - Create a weapon item
 {self.format_command('setoutlook')} <npc> <player> <value> - Set NPC outlook
 {self.format_command('set_time')} <day> <hour> [minute] - Set world time
+{self.format_command('reset_spawn')} [room_id] - Reset spawn timers for a room
 
 """
         
