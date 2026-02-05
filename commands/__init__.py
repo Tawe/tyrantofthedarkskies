@@ -20,7 +20,7 @@ from .social import say_command, who_command, talk_command
 from .shop import buy_command, sell_command, repair_command, shop_list_command
 from .info import stats_command, skills_command, maneuvers_command, quests_command, quest_command, time_command, set_time_command, help_command, inspect_command
 from .interaction import dig_command
-from .admin import create_room_command, edit_room_command, delete_room_command, list_rooms_command, goto_command, create_weapon_command, list_weapons_command
+from .admin import create_room_command, edit_room_command, delete_room_command, list_rooms_command, goto_command, create_weapon_command, list_weapons_command, reset_spawn_command
 
 __all__ = [
     # Movement
@@ -42,5 +42,5 @@ __all__ = [
     'dig_command',
     # Admin
     'create_room_command', 'edit_room_command', 'delete_room_command', 'list_rooms_command',
-    'goto_command', 'create_weapon_command', 'list_weapons_command',
+    'goto_command', 'create_weapon_command', 'list_weapons_command', 'reset_spawn_command',
 ]

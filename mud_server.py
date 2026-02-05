@@ -87,7 +87,7 @@ try:
         time_command, set_time_command, help_command, inspect_command,
         dig_command,
         create_room_command, edit_room_command, delete_room_command, list_rooms_command,
-        goto_command, create_weapon_command, list_weapons_command
+        goto_command, create_weapon_command, list_weapons_command, reset_spawn_command
     )
     COMMANDS_AVAILABLE = True
 except ImportError as e:
@@ -5741,6 +5741,9 @@ First, choose your race (affects attributes and starting skills):
             elif cmd == "create_weapon" and args and self.is_admin(player):
                 create_weapon_command(self, player, args)
                 command_handled = True
+            elif cmd == "reset_spawn" and self.is_admin(player):
+                reset_spawn_command(self, player, args)
+                command_handled = True
             elif cmd == "inspect" and args:
                 inspect_command(self, player, args)
                 command_handled = True
@@ -5866,6 +5869,9 @@ First, choose your race (affects attributes and starting skills):
                 command_handled = True
             elif cmd == "create_weapon" and args and self.is_admin(player):
                 self.create_weapon_command(player, args)
+                command_handled = True
+            elif cmd == "reset_spawn" and self.is_admin(player):
+                self.send_to_player(player, "reset_spawn requires external command module.")
                 command_handled = True
             elif cmd == "inspect" and args:
                 self.inspect_command(player, args)

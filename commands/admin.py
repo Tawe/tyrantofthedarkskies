@@ -198,7 +198,7 @@ def list_weapons_command(game, player, args):
     if not game.weapons:
         game.send_to_player(player, "No weapon templates loaded.")
         return
-    
+
     output = f"\n{game.format_header('Available Weapon Templates')}\n"
     for weapon_id, weapon in game.weapons.items():
         output += f"\n{game.format_header(weapon['name'])} ({weapon_id})\n"
@@ -207,5 +207,38 @@ def list_weapons_command(game, player, args):
         output += f"  Hands: {weapon['hands']} | Range: {weapon['range']}\n"
         output += f"  Crit: {int(weapon['crit_chance'] * 100)}% | Speed: {weapon['speed_cost']}\n"
         output += f"  Durability: {weapon['durability']}\n"
-    
+
     game.send_to_player(player, output)
+
+
+def reset_spawn_command(game, player, args):
+    """Reset spawn timers for current room or specified room (admin command).
+
+    Usage: reset_spawn [room_id]
+    If no room_id provided, resets spawns in current room.
+    """
+    if not game.runtime_state:
+        game.send_to_player(player, "Runtime state not available.")
+        return
+
+    room_id = args[0] if args else player.room_id
+    room = game.get_room(room_id)
+    if not room:
+        game.send_to_player(player, f"Room '{room_id}' not found.")
+        return
+
+    spawn_groups = getattr(room, "spawn_groups", []) or []
+    if not spawn_groups:
+        game.send_to_player(player, f"No spawn groups in room '{room_id}'.")
+        return
+
+    reset_count = 0
+    for sg in spawn_groups:
+        spawn_id = sg.get("spawn_id") or sg.get("template_id")
+        if spawn_id:
+            # Reset alive_count to 0 and next_spawn_at to now (immediate respawn eligible)
+            game.runtime_state.update_spawn_timer(room_id, spawn_id, alive_count=0, next_spawn_at=0)
+            reset_count += 1
+            game.send_to_player(player, f"Reset spawn timer for '{spawn_id}'")
+
+    game.send_to_player(player, f"Reset {reset_count} spawn timer(s) in '{room_id}'. Re-enter room to trigger spawn.")
