@@ -63,6 +63,13 @@ def dig_command(game, player, args):
         game.send_to_player(player, dig_cfg.get("already_done_text") or "You've already dug here.")
         return
 
+    # Check required flag
+    required_flag = dig_cfg.get("required_flag")
+    if required_flag and not getattr(player, "has_flag", lambda n: False)(required_flag):
+        no_flag_text = dig_cfg.get("no_flag_text") or "You don't see anything worth digging here."
+        game.send_to_player(player, no_flag_text)
+        return
+
     # Check if player has the required tool equipped
     required_tag = dig_cfg.get("requires_equipped_tag")
     if required_tag:

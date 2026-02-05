@@ -1,7 +1,13 @@
 {
   "room_id": "unflooded_sea",
   "name": "The Unflooded Sea",
-  "description": "Beyond the palisade lies the Unflooded Sea - a vast plain of ancient ocean floor that has risen to sea level. Twisted coral-like growths called Rift Forests rise in the distance, and vast fields of hardened kelp fronds wave in the wind. This is the primary early exploration zone, where strange tides flow with no water, and unmapped ruins lie buried beneath silt and coral stone.\n\nThe silt isn't uniform here. One low mound looks recently disturbed, as if the ground never quite settled.",
+  "description": "Beyond the palisade lies the Unflooded Sea - a vast plain of ancient ocean floor that has risen to sea level. Twisted coral-like growths called Rift Forests rise in the distance, and vast fields of hardened kelp fronds wave in the wind. This is the primary early exploration zone, where strange tides flow with no water, and unmapped ruins lie buried beneath silt and coral stone.",
+  "flag_descriptions": [
+    {
+      "flag": "heard_landar_rumor",
+      "text": "\n\nThe silt isn't uniform here. One low mound looks recently disturbed, as if the ground never quite settled."
+    }
+  ],
   "exits": {
     "north": "wooden_wall",
     "east": "rift_forest",
@@ -35,6 +41,8 @@
           "fail_text": "The silt shifts under your boots, but the ground here is hard to read."
         },
         "dig": {
+          "required_flag": "heard_landar_rumor",
+          "no_flag_text": "The silt here looks like silt everywhere else. Nothing catches your eye.",
           "requires_equipped_tag": "shovel",
           "no_tool_text": "You scrape at the packed silt with your hands. You'll need a shovel to do this properly.",
           "attribute": "physical",
@@ -44,7 +52,7 @@
           "success": {
             "gives_item": "magic_amulet_forgotten_sea_god",
             "set_flag": "found_mound_treasure",
-            "success_text": "Your shovel bites into the silt. After a few heavy scoops, you strike cloth-wrapped leather. You uncover a small sack containing an ancient amulet."
+            "success_text": "Your shovel bites into the silt. After a few heavy scoops, you strike cloth-wrapped leather. You uncover a small sack and take the ancient amulet within."
           },
           "fail_text": "You dig, but the silt collapses back in. You'll need stronger effort to get deeper."
         }

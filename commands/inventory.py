@@ -105,7 +105,7 @@ def use_command(game, player, args):
 
 
 # Slots the player can equip; used to tell "equip slot item" from "equip item name"
-_EQUIP_SLOTS = {"weapon", "offhand", "head", "chest", "body", "arms", "legs", "shield", "armor"}
+_EQUIP_SLOTS = {"weapon", "offhand", "head", "chest", "body", "arms", "legs", "shield", "armor", "neck"}
 
 
 def equip_command(game, player, args):
@@ -146,6 +146,8 @@ def equip_command(game, player, args):
             slot = "weapon"
         elif item.is_armor():
             slot = item.get_armor_slot()
+        elif item.item_type == "accessory" and getattr(item, "slot", None):
+            slot = item.slot
         else:
             game.send_to_player(player, "You can't equip that.")
             return
@@ -207,8 +209,28 @@ def equip_command(game, player, args):
         max_dur = getattr(item, "max_durability", 50)
         game.send_to_player(player, f"  DR: {item.damage_reduction} | Durability: {dur}/{max_dur}")
         return
-    
-    game.send_to_player(player, f"Unknown slot '{slot}'. Use: weapon, head, chest, arms, legs, shield.")
+
+    # Accessory: neck, etc.
+    if slot == "neck":
+        if item.item_type != "accessory" or getattr(item, "slot", None) != "neck":
+            game.send_to_player(player, f"{item.name} is not a neck accessory.")
+            return
+        if "neck" in player.equipped:
+            old_id = player.equipped["neck"]
+            old_item = game.items.get(old_id)
+            if old_item:
+                game.send_to_player(player, f"You unequip your {old_item.name}.")
+        player.equipped["neck"] = item_id
+        game.send_to_player(player, f"You equip {item.name} around your neck.")
+        # Show any stat bonuses
+        stats = getattr(item, "stats", {}) or {}
+        if stats:
+            bonuses = [f"+{v} {k.replace('_bonus', '').replace('_', ' ')}" for k, v in stats.items() if v]
+            if bonuses:
+                game.send_to_player(player, f"  Bonuses: {', '.join(bonuses)}")
+        return
+
+    game.send_to_player(player, f"Unknown slot '{slot}'. Use: weapon, head, chest, arms, legs, shield, neck.")
 
 
 def unequip_command(game, player, args):

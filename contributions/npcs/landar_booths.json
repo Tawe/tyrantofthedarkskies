@@ -35,7 +35,7 @@
     { "emote": "taps a claw against her cup", "say": "Strange tides out there. Strange things buried in the silt." }
   ],
   "keywords": {
-    "unflooded sea": { "emote": "leans closer, lowering her voice", "say": "I saw someone out there last night. Near the old coral beds. They were burying something in a [mound] of silt. Looked heavy. Looked valuable." },
+    "unflooded sea": { "emote": "leans closer, lowering her voice", "say": "I saw someone out there last night. Near the old coral beds. They were burying something in a [mound] of silt. Looked heavy. Looked valuable.", "set_flag": "heard_landar_rumor" },
     "mound": { "emote": "shrugs, scales rippling", "say": "A low rise of packed silt, just sitting there like someone wanted it found eventually. Or never found at all. Either way, someone with a [shovel] could [dig] it up. Not me though — I don't dig in other people's graves." },
     "dig": { "emote": "waves a webbed hand dismissively", "say": "Digging's honest work, I suppose. Hard on the back though. You'd need a [shovel] and some strength to get through that packed silt." },
     "shovel": { "emote": "gestures vaguely toward the common room", "say": "Jalia sells tools at her shop. Shovels, ropes, the things people need when they go poking around places they shouldn't. Tell her I sent you. Or don't. She doesn't care either way." },

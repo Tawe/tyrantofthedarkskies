@@ -54,6 +54,12 @@ def look_command(game, player, args):
         return
         
     output = f"\n{game.format_header(room.name)}\n{room.description}\n"
+    # Conditional descriptions based on player flags
+    flag_descriptions = getattr(room, "flag_descriptions", []) or []
+    for fd in flag_descriptions:
+        flag = fd.get("flag")
+        if flag and getattr(player, "has_flag", lambda n: False)(flag):
+            output += fd.get("text", "")
     # When spawned creatures are present, append lore-friendly creature_presence from room (no creature list)
     if getattr(game, "runtime_state", None):
         has_creatures = any(
