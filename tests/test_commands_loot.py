@@ -151,6 +151,82 @@ class TestHandleTakeFromCorpse(unittest.TestCase):
         self.assertTrue(any("coin" in msg.lower() for _, msg in self.game._messages))
 
 
+class TestLootAllWithCorpseName(unittest.TestCase):
+    """Tests for 'loot all <corpse_name>' feature."""
+
+    def setUp(self):
+        self.room = MockRoom()
+        self.player = MockPlayer()
+        self.game = MockGame(
+            rooms={self.room.room_id: self.room},
+            items=make_mock_items(),
+        )
+        self.rt = MockRuntimeState()
+        self.game.runtime_state = self.rt
+
+    def test_loot_all_with_corpse_name(self):
+        """Test 'loot all goblin' takes from specific corpse."""
+        corpse1 = {
+            "entity_type": "corpse",
+            "name": "corpse of a goblin",
+            "instance_id": "corpse_1",
+            "loot": {"rolled": True, "coins": 5, "items": [{"item_id": "stick", "count": 1}]},
+        }
+        corpse2 = {
+            "entity_type": "corpse",
+            "name": "corpse of a troll",
+            "instance_id": "corpse_2",
+            "loot": {"rolled": True, "coins": 10, "items": [{"item_id": "potion", "count": 1}]},
+        }
+        self.rt.add_entity_to_room(self.room.room_id, corpse1)
+        self.rt.add_entity_to_room(self.room.room_id, corpse2)
+
+        loot_command(self.game, self.player, ["all", "goblin"])
+
+        # Should have looted goblin corpse
+        self.assertIn("stick", self.player.inventory)
+        self.assertEqual(self.player.gold, 5)
+        # Should NOT have looted troll corpse
+        self.assertNotIn("potion", self.player.inventory)
+
+    def test_loot_all_no_matching_corpse(self):
+        """Test 'loot all dragon' when no dragon corpse exists."""
+        corpse = {
+            "entity_type": "corpse",
+            "name": "corpse of a goblin",
+            "instance_id": "corpse_1",
+            "loot": {"rolled": True, "coins": 5, "items": []},
+        }
+        self.rt.add_entity_to_room(self.room.room_id, corpse)
+
+        loot_command(self.game, self.player, ["all", "dragon"])
+
+        # Should show error message
+        self.assertTrue(any("don't see" in msg.lower() for _, msg in self.game._messages))
+
+    def test_loot_all_multiple_corpses_requires_name(self):
+        """Test 'loot all' with multiple corpses prompts for name."""
+        corpse1 = {
+            "entity_type": "corpse",
+            "name": "corpse of a goblin",
+            "instance_id": "corpse_1",
+            "loot": {"rolled": True, "coins": 5, "items": []},
+        }
+        corpse2 = {
+            "entity_type": "corpse",
+            "name": "corpse of a troll",
+            "instance_id": "corpse_2",
+            "loot": {"rolled": True, "coins": 10, "items": []},
+        }
+        self.rt.add_entity_to_room(self.room.room_id, corpse1)
+        self.rt.add_entity_to_room(self.room.room_id, corpse2)
+
+        loot_command(self.game, self.player, ["all"])
+
+        # Should prompt for corpse name
+        self.assertTrue(any("which corpse" in msg.lower() or "loot all <name>" in msg.lower() for _, msg in self.game._messages))
+
+
 class TestLootCommand(unittest.TestCase):
     """Tests for loot_command()."""
 
