@@ -2935,11 +2935,24 @@ that scales by tier, and offers attribute bonuses and starting skills.
         template = self.npcs.get(template_id) if template_id else None
         self.runtime_state.remove_entity_from_world(instance_id, delete_instance=True)
         # B2: Update spawn group counters (decrement alive_count for this spawn_id)
+        # Also reset next_spawn_at to start cooldown from death, not from spawn
         spawn_group_id = getattr(target_entity, "spawn_group_id", None)
         if spawn_group_id:
             timer = self.runtime_state.get_spawn_timer(room_id, spawn_group_id)
             alive = max(0, timer.get("alive_count", 1) - 1)
-            self.runtime_state.update_spawn_timer(room_id, spawn_group_id, alive_count=alive)
+            # Find cooldown from room's spawn_groups config
+            room = self.get_room(room_id)
+            cooldown_seconds = 120.0  # default
+            if room:
+                spawn_groups = getattr(room, "spawn_groups", []) or []
+                for sg in spawn_groups:
+                    sg_id = sg.get("spawn_id") or sg.get("template_id")
+                    if sg_id == spawn_group_id:
+                        cooldown_seconds = sg.get("cooldown_seconds", 120.0)
+                        break
+            import time
+            next_spawn = time.time() + cooldown_seconds
+            self.runtime_state.update_spawn_timer(room_id, spawn_group_id, alive_count=alive, next_spawn_at=next_spawn)
         # Loot system (docs/loot_system.md): generate loot once, spawn corpse entity via systems.loot_system
         if template:
             loot_config = getattr(template, "loot", None) or {"entries": getattr(template, "loot_table", []) or []}
