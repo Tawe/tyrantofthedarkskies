@@ -235,9 +235,24 @@ def reset_spawn_command(game, player, args):
     reset_count = 0
     for sg in spawn_groups:
         spawn_id = sg.get("spawn_id") or sg.get("template_id")
+        template_id = sg.get("template_id", spawn_id)
         if spawn_id:
+            # Check if template exists
+            template = game.npcs.get(template_id)
+            if not template:
+                game.send_to_player(player, f"WARNING: Template '{template_id}' not found in npcs!")
+
+            # Show before state
+            before = game.runtime_state.get_spawn_timer(room_id, spawn_id)
+            game.send_to_player(player, f"Before: alive={before.get('alive_count', 0)}, next_at={before.get('next_spawn_at', 0)}")
+
             # Reset alive_count to 0 and next_spawn_at to now (immediate respawn eligible)
             game.runtime_state.update_spawn_timer(room_id, spawn_id, alive_count=0, next_spawn_at=0)
+
+            # Show after state
+            after = game.runtime_state.get_spawn_timer(room_id, spawn_id)
+            game.send_to_player(player, f"After: alive={after.get('alive_count', 0)}, next_at={after.get('next_spawn_at', 0)}")
+
             reset_count += 1
             game.send_to_player(player, f"Reset spawn timer for '{spawn_id}'")
 
