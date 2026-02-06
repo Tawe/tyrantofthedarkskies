@@ -17,6 +17,18 @@ SOCIAL_ENCOUNTER_MESSAGES = [
     "Something about this place feels lived-in—perhaps others rest here often.",
 ]
 
+ENVIRONMENTAL_ENCOUNTER_MESSAGES = [
+    "A sudden gust whips through, carrying the tang of salt and decay.",
+    "The ground beneath your feet trembles faintly, then stills.",
+    "Strange lights flicker at the edge of your vision, then vanish.",
+]
+
+EXPLORATION_ENCOUNTER_MESSAGES = [
+    "You spot something half-buried in the earth — old tracks, or perhaps claw marks.",
+    "A faint trail leads off in an unexpected direction before disappearing.",
+    "The remains of a campfire smolder nearby. Someone was here not long ago.",
+]
+
 
 def _debug_encounters():
     """Read at runtime so Fly.io / Docker env is always visible."""
@@ -127,10 +139,17 @@ class EncounterService:
             self.runtime_state.set_room_state_fields(room_id, state=state, last_encounter_roll_at=now)
             if debug:
                 print("[encounter] non-combat or no composition; cooldown set", flush=True)
-            # Show something for social encounters so the player sees feedback
-            if matched[2] == "social" and callable(broadcast_to_room):
-                msg = random.choice(SOCIAL_ENCOUNTER_MESSAGES)
-                broadcast_to_room(room_id, msg)
+            # Show flavor for non-combat encounters so the player sees feedback
+            if callable(broadcast_to_room):
+                if matched[2] == "social":
+                    msg = random.choice(SOCIAL_ENCOUNTER_MESSAGES)
+                    broadcast_to_room(room_id, msg)
+                elif matched[2] == "environmental":
+                    msg = random.choice(ENVIRONMENTAL_ENCOUNTER_MESSAGES)
+                    broadcast_to_room(room_id, msg)
+                elif matched[2] == "exploration":
+                    msg = random.choice(EXPLORATION_ENCOUNTER_MESSAGES)
+                    broadcast_to_room(room_id, msg)
             return
         comp_key = matched[3]
         composition = self.encounter_compositions.get(comp_key)
@@ -165,5 +184,20 @@ class EncounterService:
                 self.runtime_state.place_entity(instance_id, room_id)
                 spawned.append((template_id, instance_id))
         self.runtime_state.set_room_state_fields(room_id, state=state, last_encounter_roll_at=now)
+        # Notify players that creatures have appeared
+        if spawned and callable(broadcast_to_room):
+            names = {}
+            for tid, _ in spawned:
+                t = self.npcs.get(tid)
+                name = t.name if t else tid.replace("_", " ").title()
+                names[name] = names.get(name, 0) + 1
+            parts = []
+            for name, count in names.items():
+                if count > 1:
+                    parts.append(f"{count} {name}s")
+                else:
+                    parts.append(f"a {name}")
+            creature_text = " and ".join(parts)
+            broadcast_to_room(room_id, f"Hostile creatures emerge nearby — {creature_text}!")
         if debug:
             print(f"[encounter] spawned room={room_id} composition={comp_key} encounter_id={encounter_id[:8]}... count={len(spawned)} {spawned}", flush=True)
