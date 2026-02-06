@@ -20,6 +20,7 @@
     "Dodging": 10,
     "Fighting": 10
   },
+  "aggression": { "type": "aggressive", "radius_rooms": 0, "initial_threat": 10 },
   "behaviors": {
     "preferred_range_band": "near",
     "pursue": "short",

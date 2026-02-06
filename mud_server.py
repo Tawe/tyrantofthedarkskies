@@ -636,6 +636,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
         npc.skills = {k.lower(): v for k, v in skills.items()}
         npc.attributes = {"physical": 10, "mental": 10, "spiritual": 10, "social": 10}
         npc.is_hostile = True
+        npc.aggression = data.get("aggression", {"type": "aggressive", "radius_rooms": 0})
         npc.equipped = {}
         npc.outlooks = {}
         npc.faction_outlooks = {}
@@ -2285,11 +2286,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
 
         # Leaving a room ends combat participation (Option 1, combat.md)
         if self.combat_manager:
-            old_combat = self.combat_manager.get_combat_state(old_room_id)
-            if old_combat and old_combat.is_active and player.name in old_combat.combatants:
-                old_combat.remove_combatant(player.name)
-                if len(old_combat.combatants) < 2:
-                    self.combat_manager.end_combat(old_room_id)
+            self.combat_manager.on_player_leave_room(player, old_room_id)
 
         # Runtime state: load/create room_state once and reuse to avoid extra Firebase loads (R4, B1)
         room_state = None
@@ -2344,6 +2341,14 @@ that scales by tier, and offers attribute bonuses and starting skills.
             self.look_command(player, [])
         self.broadcast_to_room(new_room_id, f"{player.name} arrives.", player.name)
         self._emit_room_enter_ambient(new_room_id, new_room, player)
+
+        # Aggression check: aggressive creatures may auto-engage the player
+        if self.combat_manager and player.health > 0:
+            self.combat_manager.on_player_enter_room(
+                player, new_room, self.npcs,
+                self.runtime_state,
+                self.send_to_player,
+            )
 
     def say_command(self, player, args):
         if not args:

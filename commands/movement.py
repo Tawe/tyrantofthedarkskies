@@ -408,10 +408,14 @@ def move_command(game, player, direction):
             game.send_to_player(player, game.format_error(f"The shop is {status.lower()}. You cannot enter while it's closed."))
             return
             
+    # Leave combat when exiting a room (simple model: immediate stop)
+    if game.combat_manager:
+        game.combat_manager.on_player_leave_room(player, old_room_id)
+
     room.players.discard(player.name)
     new_room.players.add(player.name)
     player.room_id = new_room_id
-    
+
     # Runtime state and zone/weather hooks (reuse room state to avoid extra Firebase loads)
     room_state = None
     if getattr(game, "runtime_state", None):
@@ -464,3 +468,11 @@ def move_command(game, player, direction):
     game.broadcast_to_room(new_room_id, f"{player.name} arrives.", player.name)
     if hasattr(game, "_emit_room_enter_ambient"):
         game._emit_room_enter_ambient(new_room_id, new_room, player)
+
+    # Aggression check: aggressive creatures in the room may auto-engage the player
+    if game.combat_manager and player.health > 0:
+        game.combat_manager.on_player_enter_room(
+            player, new_room, game.npcs,
+            getattr(game, "runtime_state", None),
+            game.send_to_player,
+        )

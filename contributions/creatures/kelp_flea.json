@@ -21,6 +21,7 @@
     "Fighting": 8,
     "Climbing": 18
   },
+  "aggression": { "type": "passive" },
   "behaviors": {
     "preferred_range_band": "engaged",
     "pursue": "short",

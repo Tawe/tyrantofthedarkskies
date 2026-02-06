@@ -23,6 +23,7 @@
   "active_maneuvers": [],
   "equipped": {},
   "is_hostile": true,
+  "aggression": { "type": "aggressive", "radius_rooms": 0, "initial_threat": 10 },
   "combat_state": "Observing",
   "loot_table": [],
   "outlooks": {},

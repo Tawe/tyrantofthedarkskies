@@ -23,6 +23,8 @@ class InstanceCombatTarget:
         self.loot_table = getattr(template_npc, "loot_table", []) if template_npc else []
         self.npc_id = self.instance_id
         self.equipped = getattr(template_npc, "equipped", {}) if template_npc else {}
+        self.aggression = getattr(template_npc, "aggression", {"type": "passive"}) if template_npc else {"type": "passive"}
+        self.is_hostile = getattr(template_npc, "is_hostile", False) if template_npc else False
 
     def get_tier(self):
         return getattr(self._template, "get_tier", lambda: "Low")() if self._template else "Low"
@@ -96,7 +98,8 @@ class CombatState:
                 "state": "Observing",
                 "states": ["Observing"],
                 "initiative": initiative,
-                "target": None
+                "target": None,
+                "engaged_by": [],
             }
             self.initiative_order.append((name, entity_type, initiative))
             self.initiative_order.sort(key=lambda x: x[2], reverse=True)
@@ -234,7 +237,139 @@ class CombatManager:
             combat.is_active = False
             self.broadcast_func(room_id, "Combat ends.")
             # Don't delete, keep for potential re-engagement
-    
+
+    # --- Aggression system (docs/combat_system-aggression.md) ---
+
+    def on_player_enter_room(self, player, room, npcs_dict, runtime_state, send_to_player_func):
+        """Scan room for aggressive creatures when a player enters. Schedule engagement after 1 tick delay.
+
+        Args:
+            player: Player object that entered the room.
+            room: Room object the player entered.
+            npcs_dict: game.npcs dict for template lookups.
+            runtime_state: RuntimeStateService for spawned creature lookups.
+            send_to_player_func: callable(player, message) to message the entering player.
+        """
+        room_id = room.room_id
+
+        # Safe rooms: aggressive creatures should not auto-engage
+        room_flags = getattr(room, "flags", []) or []
+        if "safe" in room_flags:
+            return
+
+        aggressive_targets = []
+
+        # Check runtime entity instances (spawned creatures)
+        if runtime_state:
+            for inst in runtime_state.get_entities_in_room(room_id):
+                if inst.get("entity_type") not in ("creature", "npc"):
+                    continue
+                template_id = inst.get("template_id")
+                template_npc = npcs_dict.get(template_id) if template_id else None
+                aggression = getattr(template_npc, "aggression", {"type": "passive"}) if template_npc else {"type": "passive"}
+                if aggression.get("type") == "aggressive" and aggression.get("radius_rooms", 0) == 0:
+                    target_obj = InstanceCombatTarget(inst, template_npc)
+                    if target_obj.health > 0:
+                        aggressive_targets.append(target_obj)
+
+        # Check static NPCs in room
+        for npc_id in (room.npcs or []):
+            npc = npcs_dict.get(npc_id)
+            if not npc:
+                continue
+            aggression = getattr(npc, "aggression", {"type": "passive"})
+            if aggression.get("type") == "aggressive" and npc.health > 0:
+                aggressive_targets.append(npc)
+
+        if not aggressive_targets:
+            return
+
+        # Send warning cues immediately
+        for target in aggressive_targets:
+            send_to_player_func(player, f"{target.name} swivels toward you, readying to attack.")
+
+        # Schedule engagement after 1 tick delay (~1 real second = 1 BAT)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.call_later(
+                self.base_attack_tick,
+                self._creature_engage_player,
+                player, room_id, aggressive_targets, send_to_player_func,
+            )
+        except RuntimeError:
+            # No event loop — engage immediately as fallback
+            self._creature_engage_player(player, room_id, aggressive_targets, send_to_player_func)
+
+    def _creature_engage_player(self, player, room_id, aggressive_targets, send_to_player_func):
+        """Engage a player with aggressive creatures after the warning delay.
+
+        Starts combat if not active, adds creatures as combatants, and auto-starts
+        the player's autoattack against the first attacker.
+        """
+        # Verify player is still in the room
+        if getattr(player, "room_id", None) != room_id:
+            return
+        # Verify player is alive
+        if getattr(player, "health", 1) <= 0:
+            return
+
+        combat = self.get_combat_state(room_id)
+        first_attacker_name = None
+
+        for target in aggressive_targets:
+            # Skip dead creatures
+            if getattr(target, "health", 0) <= 0:
+                continue
+            target_name = getattr(target, "name", "Unknown")
+
+            if not combat.is_active:
+                # Start combat: creature initiates against player
+                self.start_combat(room_id, target_name, target, player.name, player)
+                combat = self.get_combat_state(room_id)
+                send_to_player_func(player, f"{target_name} attacks you!")
+                if first_attacker_name is None:
+                    first_attacker_name = target_name
+            else:
+                # Join existing combat targeting the player
+                if target_name not in combat.combatants:
+                    self.join_combat(room_id, target_name, target, player.name)
+                    send_to_player_func(player, f"{target_name} attacks you!")
+
+                # Track in player's engaged_by list
+                player_info = combat.combatants.get(player.name)
+                if player_info:
+                    engaged_by = player_info.get("engaged_by", [])
+                    if target_name not in engaged_by:
+                        engaged_by.append(target_name)
+                        player_info["engaged_by"] = engaged_by
+
+                if first_attacker_name is None:
+                    first_attacker_name = target_name
+
+        # Auto-start player autoattack (doc: incoming aggression should not require typing attack)
+        if first_attacker_name and combat.is_active:
+            player_info = combat.combatants.get(player.name)
+            if player_info:
+                current_target = player_info.get("target")
+                if not current_target:
+                    # No current target — set autoattack to first attacker
+                    player_info["target"] = first_attacker_name
+                    player_info["state"] = "Engaged"
+                    send_to_player_func(player, "You ready your weapon and fight back.")
+                # If player already has a target, don't switch (prevent target thrash)
+
+    def on_player_leave_room(self, player, room_id):
+        """Stop combat for a player when they leave a room (simple model: immediate stop)."""
+        combat = self.active_combats.get(room_id)
+        if not combat or not combat.is_active:
+            return
+        if player.name not in combat.combatants:
+            return
+        combat.remove_combatant(player.name)
+        self.broadcast_func(room_id, f"{player.name} flees from combat!")
+        if len(combat.combatants) < 2:
+            self.end_combat(room_id)
+
     def _ensure_combat_tick_task(self):
         """Ensure the combat tick background task is running"""
         if self.combat_tick_task is None or self.combat_tick_task.done():

@@ -24,6 +24,7 @@ class NPC:
         self.active_maneuvers = []
         self.equipped = {}
         self.is_hostile = False
+        self.aggression = {"type": "passive"}
         self.combat_state = "Observing"
         self.combat_target = None
         self.initiative = 0
@@ -78,6 +79,7 @@ class NPC:
             "active_maneuvers": self.active_maneuvers,
             "equipped": self.equipped,
             "is_hostile": self.is_hostile,
+            "aggression": self.aggression,
             "combat_state": self.combat_state,
             "loot_table": self.loot_table,
             "outlooks": self.outlooks,
@@ -99,3 +101,6 @@ class NPC:
         for key, value in data.items():
             setattr(self, key, value)
         self.tier = self.get_tier()
+        # Infer aggression from is_hostile if no explicit aggression block
+        if "aggression" not in data and self.is_hostile:
+            self.aggression = {"type": "aggressive", "radius_rooms": 0}
