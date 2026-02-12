@@ -72,6 +72,13 @@ def attack_command(game, player, args):
             # Join existing combat
             game.combat_manager.join_combat(player.room_id, player.name, player, target_display)
 
+        # Alert packmates when initiating combat with a new creature
+        if not was_in_combat and InstanceCombatTarget and isinstance(target, InstanceCombatTarget):
+            game.combat_manager.alert_pack(
+                player.room_id, target, player,
+                game.npcs, game.runtime_state, game.send_to_player,
+            )
+
         # At this point the player is a combatant; manage autoattack targeting.
         combatant_info = combat.combatants.get(player.name)
         if combatant_info:

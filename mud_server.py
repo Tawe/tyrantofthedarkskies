@@ -1984,7 +1984,7 @@ that scales by tier, and offers attribute bonuses and starting skills.
                     name = item.name if item else (template_id or "Unknown")
                     items_here.append(self.format_item(name))
         if items_here:
-            output += f"\nItems here: {', '.join(items_here)}"
+            output += f"\nItems: {', '.join(items_here)}"
         # Corpses (docs/loot_system.md)
         if self.runtime_state:
             corpses_here = [inst.get("name", "a corpse") for inst in self.runtime_state.get_entities_in_room(room.room_id) if inst.get("entity_type") == "corpse"]
@@ -6141,6 +6141,7 @@ First, choose your race (affects attributes and starting skills):
             else:
                 self.send_to_player(player, "You don't have permission to teleport.")
         elif cmd == "quit":
+            self.send_to_player(player, "Goodbye.")
             player.is_logged_in = False
             return
         else:
@@ -6534,6 +6535,14 @@ First, choose your race (affects attributes and starting skills):
                             try:
                                 loop = asyncio.get_running_loop()
                                 await loop.run_in_executor(self.ws_executor, self.process_command, player, command)
+                                # Quit was requested by command handler. Close immediately so
+                                # clients don't interpret a delayed disconnect as a transient drop.
+                                if not player.is_logged_in:
+                                    try:
+                                        await websocket.close(code=1000, reason="quit")
+                                    except Exception:
+                                        pass
+                                    break
                             except Exception as e:
                                 print(f"Error processing command '{command}': {e}")
                                 traceback.print_exc()

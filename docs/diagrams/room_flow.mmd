@@ -1,0 +1,106 @@
+---
+title: Tyrant of the Dark Skies - Room Map
+---
+flowchart TB
+
+    %% ── New Cove Town ──────────────────────────────
+    subgraph NCT["New Cove Town"]
+        direction TB
+        city_barracks["City Barracks"]
+        magitium_outpost["Magitium Outpost"]
+        governors_house["Governor's House"]
+        temple_lumeris["Temple of Lumeris"]
+        new_cove_square["New Cove\nTown Square"]
+        jalia_goods["Jalia's Goods"]
+        black_anchor_common["Black Anchor\nCommon Room"]
+        black_anchor_guild["Black Anchor\nGuild Board"]
+        black_anchor_booths["Black Anchor\nBack Booths"]
+        docks["The Docks"]
+        wooden_wall["The Wooden Wall"]
+    end
+
+    %% New Cove Town connections
+    new_cove_square -- "NW" --- city_barracks
+    new_cove_square -- "NE" --- magitium_outpost
+    new_cove_square -- "N" --- governors_house
+    new_cove_square -- "W" --- temple_lumeris
+    new_cove_square -- "E" --- jalia_goods
+    new_cove_square -- "S" --- black_anchor_common
+    new_cove_square -- "SW" --- wooden_wall
+    governors_house -- "E" --- docks
+    black_anchor_common -- "E" --- docks
+    black_anchor_common -- "W" --- black_anchor_guild
+    black_anchor_guild -- "W" --- black_anchor_booths
+    docks -- "S" --- wooden_wall
+
+    %% ── Unflooded Sea ──────────────────────────────
+    subgraph UFS["Unflooded Sea Region"]
+        direction TB
+        unflooded_sea["The Unflooded Sea"]
+        ancient_ruins["Ancient Ruins"]
+    end
+
+    unflooded_sea -- "W" --- ancient_ruins
+
+    %% ── Kelp Plains ────────────────────────────────
+    subgraph KP["Kelp Plains Region"]
+        direction TB
+        kelp_plains["Kelp Plains"]
+        buried_ruins["Buried Ruins"]
+    end
+
+    kelp_plains -- "S" --- buried_ruins
+
+    %% ── Rift Forest ────────────────────────────────
+    subgraph RF["Rift Forest Region"]
+        direction TB
+        rift_forest["Rift Forest"]
+        crabfolk_settlement["Crabfolk Settlement"]
+    end
+
+    rift_forest -- "E" --- crabfolk_settlement
+
+    %% ── Sunken King's Cave ─────────────────────────
+    subgraph SKC["Sunken King's Cave"]
+        direction TB
+        cave_outside["Outside the Cave"]
+        cave_watery_entry["Watery Cave"]
+        cave_drawings["Cave Drawings"]
+        cave_nest["The Nest"]
+        cave_small_alcove["Small Alcove"]
+        cave_tomb_opening["Tomb Opening"]
+        cave_coral_idol_chamber["Coral Idol Chamber"]
+        cave_pit_room["Pit Room"]
+        cave_pit_bottom["Pit Bottom"]
+        cave_kings_tomb["King's Tomb"]
+    end
+
+    %% Cave connections
+    cave_outside -- "E" --- cave_watery_entry
+    cave_watery_entry -- "N" --- cave_drawings
+    cave_watery_entry -- "W" --- cave_nest
+    cave_watery_entry -- "E" --- cave_small_alcove
+    cave_drawings -- "E" --- cave_tomb_opening
+    cave_tomb_opening -. "hidden E" .-> cave_coral_idol_chamber
+    cave_tomb_opening -. "hidden N" .-> cave_kings_tomb
+    cave_coral_idol_chamber -- "S" --- cave_pit_room
+    cave_pit_room -- "S" --- cave_nest
+    cave_pit_room -. "climb DC 10" .-> cave_pit_bottom
+
+    %% ── Cross-region connections ────────────────────
+    wooden_wall == "S" ==> unflooded_sea
+    unflooded_sea == "E" ==> rift_forest
+    unflooded_sea == "S" ==> kelp_plains
+
+    %% ── Styling ─────────────────────────────────────
+    classDef hub fill:#f9d71c,stroke:#333,color:#000
+    classDef shop fill:#7bc8f6,stroke:#333,color:#000
+    classDef cave fill:#c8a2c8,stroke:#333,color:#000
+    classDef hidden fill:#ff9999,stroke:#333,stroke-dasharray:5 5,color:#000
+    classDef wild fill:#90ee90,stroke:#333,color:#000
+
+    class new_cove_square hub
+    class jalia_goods,magitium_outpost,black_anchor_guild shop
+    class cave_outside,cave_watery_entry,cave_drawings,cave_nest,cave_small_alcove,cave_tomb_opening,cave_coral_idol_chamber,cave_pit_room,cave_pit_bottom cave
+    class cave_kings_tomb hidden
+    class unflooded_sea,kelp_plains,rift_forest,ancient_ruins,buried_ruins,crabfolk_settlement wild

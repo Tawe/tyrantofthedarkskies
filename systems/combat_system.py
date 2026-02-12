@@ -20,6 +20,7 @@ class InstanceCombatTarget:
         self.instance_id = inst.get("instance_id")
         self.template_id = inst.get("template_id")
         self.spawn_group_id = inst.get("spawn_group_id")
+        self.encounter_id = inst.get("encounter_id")
         self.loot_table = getattr(template_npc, "loot_table", []) if template_npc else []
         self.npc_id = self.instance_id
         self.equipped = getattr(template_npc, "equipped", {}) if template_npc else {}
@@ -357,6 +358,50 @@ class CombatManager:
                     player_info["state"] = "Engaged"
                     send_to_player_func(player, "You ready your weapon and fight back.")
                 # If player already has a target, don't switch (prevent target thrash)
+
+    def alert_pack(self, room_id, attacked_target, attacker_player, npcs_dict, runtime_state, send_to_player_func):
+        """Alert packmates when a creature is attacked. All creatures sharing the same
+        spawn_group_id or encounter_id will join combat against the attacker."""
+        group_key = getattr(attacked_target, "spawn_group_id", None) or getattr(attacked_target, "encounter_id", None)
+        if not group_key:
+            return
+
+        attacked_instance_id = getattr(attacked_target, "instance_id", None)
+        if not runtime_state:
+            return
+
+        combat = self.get_combat_state(room_id)
+
+        for inst in runtime_state.get_entities_in_room(room_id):
+            if inst.get("entity_type") not in ("creature", "npc"):
+                continue
+            inst_id = inst.get("instance_id")
+            # Skip the creature that was attacked
+            if inst_id == attacked_instance_id:
+                continue
+            # Check if this entity shares the same group key
+            inst_group = inst.get("spawn_group_id") or inst.get("encounter_id")
+            if inst_group != group_key:
+                continue
+            # Skip dead creatures
+            if inst.get("hp_current", 0) <= 0:
+                continue
+            # Skip creatures already in combat
+            template_id = inst.get("template_id")
+            template_npc = npcs_dict.get(template_id) if template_id else None
+            packmate = InstanceCombatTarget(inst, template_npc)
+            packmate_name = packmate.name
+            if combat.is_active and packmate_name in combat.combatants:
+                continue
+
+            # Join combat targeting the attacker
+            if not combat.is_active:
+                self.start_combat(room_id, packmate_name, packmate, attacker_player.name, attacker_player)
+                combat = self.get_combat_state(room_id)
+            else:
+                self.join_combat(room_id, packmate_name, packmate, attacker_player.name)
+
+            send_to_player_func(attacker_player, f"{packmate_name} rushes to defend its packmate!")
 
     def on_player_leave_room(self, player, room_id):
         """Stop combat for a player when they leave a room (simple model: immediate stop)."""

@@ -1,0 +1,76 @@
+---
+title: Tyrant of the Dark Skies - Character Sheet Layout
+---
+flowchart TB
+
+    %% ── Header ─────────────────────────────────────
+    subgraph Header["Character Sheet"]
+        direction TB
+        name_line["Name"]
+        identity_line["Level • Tier • Race • Starsign"]
+        origin_line["Planet • Fated Mark"]
+    end
+
+    %% ── Core Stats ─────────────────────────────────
+    subgraph Core["Core Stats"]
+        direction TB
+        vitals["Vitals\nHP / Max HP\nMana / Max Mana\nStamina / Max Stamina"]
+        progression["Progression\nLevel • XP\nGold"]
+    end
+
+    %% ── Attributes ────────────────────────────────
+    subgraph Attributes["Attributes"]
+        direction TB
+        attr_physical["Physical (bonus)"]
+        attr_mental["Mental (bonus)"]
+        attr_spiritual["Spiritual (bonus)"]
+        attr_social["Social (bonus)"]
+    end
+
+    %% ── Skills ────────────────────────────────────
+    subgraph Skills["Skills (1–100)"]
+        direction TB
+        skills_physical["Physical\nFighting, Dodging, Climbing, Swimming, Throwing"]
+        skills_mental["Mental\nTracking, Investigating, Remembering, Lockpicking, Brewing"]
+        skills_spiritual["Spiritual\nPraying, Meditating, Channeling, Warding, Binding"]
+        skills_social["Social\nPersuading, Intimidating, Deceiving, Leading, Bargaining"]
+        skills_crafting["Crafting\nRepairing, Smithing, Taming"]
+    end
+
+    %% ── Maneuvers ──────────────────────────────────
+    subgraph Maneuvers["Maneuvers"]
+        direction TB
+        known_maneuvers["Known Maneuvers"]
+        active_maneuvers["Active Maneuvers (max by tier)"]
+        maneuver_slots["Max Active (Low 2 / Mid 3 / High 4 / Epic 5)"]
+    end
+
+    %% ── Equipment & Inventory ─────────────────────
+    subgraph Gear["Gear"]
+        direction TB
+        equipped["Equipped\nWeapon • Armor • Accessories"]
+        inventory["Inventory"]
+    end
+
+    %% ── Status & Flags ────────────────────────────
+    subgraph Status["Status & Flags"]
+        direction TB
+        flags["Quest / Story Flags"]
+        shaken["Shaken (death recovery timer)"]
+        food_regen["Food Regen (active)\nPotion Sickness (timer)"]
+    end
+
+    %% ── Layout Links ──────────────────────────────
+    Header --> Core
+    Core --> Attributes
+    Attributes --> Skills
+    Skills --> Maneuvers
+    Maneuvers --> Gear
+    Gear --> Status
+
+    %% ── Styling ───────────────────────────────────
+    classDef headerStyle fill:#e0f2ff,stroke:#1d4ed8,color:#1e3a8a
+    classDef blockStyle fill:#f8fafc,stroke:#64748b,color:#0f172a
+
+    class Header headerStyle
+    class Core,Attributes,Skills,Maneuvers,Gear,Status blockStyle

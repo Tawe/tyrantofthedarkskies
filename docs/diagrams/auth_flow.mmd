@@ -1,0 +1,81 @@
+---
+title: Tyrant of the Dark Skies - Auth Flow
+---
+flowchart TB
+
+    %% Actors
+    subgraph Client["Client (Web / UI)"]
+        direction TB
+        client_login["User signs in via Firebase Auth SDK\n(email/password, etc.)"]
+        client_token["Client receives Firebase ID token"]
+        client_ws["Open WebSocket to MUD server"]
+        client_send_auth["Send {type: auth, token: <id_token>} as first message"]
+        client_receive_success["Receive auth_success"]
+        client_receive_prompt["If new user: prompt for character name"]
+        client_send_name["Send character name"]
+    end
+
+    subgraph Server["MUD Server (mud_server.py)"]
+        direction TB
+        server_wait["Wait for first WS message (10s timeout)"]
+        server_parse["Parse JSON and extract token"]
+        server_verify["Verify ID token (async to thread, 5s timeout)"]
+        server_load_player["Load player by Firebase UID (FirebaseDataLayer)\n(5s timeout)"]
+        server_existing["Existing player found"]
+        server_new["No player data: new character flow"]
+        server_name_validate["Validate/sanitize name\nreject JWT-like or duplicate name"]
+        server_create_player["Create Player, set firebase_uid/email"]
+        server_admin_check["If admin: set custom claims"]
+        server_auth_success["Send auth_success"]
+        server_close_error["Send auth_error + close"]
+    end
+
+    subgraph Firebase["Firebase"]
+        direction TB
+        firebase_auth["Firebase Auth (client SDK)"]
+        firebase_admin["Firebase Admin SDK\nverify_id_token"]
+        firestore["Firestore\nplayers collection"]
+    end
+
+    %% Client auth and WS connect
+    client_login --> firebase_auth
+    firebase_auth --> client_token
+    client_token --> client_ws --> server_wait
+    client_ws --> client_send_auth --> server_parse
+
+    %% Server parse + verify
+    server_parse -->|"missing/invalid token"| server_close_error
+    server_parse --> server_verify
+    server_verify --> firebase_admin
+    firebase_admin --> server_verify
+    server_verify -->|"invalid/timeout"| server_close_error
+
+    %% Load player data
+    server_verify --> server_load_player
+    server_load_player --> firestore
+    firestore --> server_load_player
+    server_load_player -->|"found"| server_existing
+    server_load_player -->|"not found"| server_new
+
+    %% Existing user path
+    server_existing --> server_admin_check
+    server_admin_check --> server_auth_success
+    server_auth_success --> client_receive_success
+
+    %% New user path
+    server_new --> client_receive_prompt
+    client_receive_prompt --> client_send_name --> server_name_validate
+    server_name_validate -->|"invalid/duplicate"| server_close_error
+    server_name_validate --> server_create_player --> server_admin_check
+    server_admin_check --> server_auth_success
+
+    %% Styling
+    classDef client fill:#e0f2ff,stroke:#2b6cb0,color:#1a365d
+    classDef server fill:#fef3c7,stroke:#92400e,color:#78350f
+    classDef firebase fill:#ede9fe,stroke:#5b21b6,color:#4c1d95
+    classDef error fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
+
+    class client_login,client_token,client_ws,client_send_auth,client_receive_success,client_receive_prompt,client_send_name client
+    class server_wait,server_parse,server_verify,server_load_player,server_existing,server_new,server_name_validate,server_create_player,server_admin_check,server_auth_success server
+    class firebase_auth,firebase_admin,firestore firebase
+    class server_close_error error

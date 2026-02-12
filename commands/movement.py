@@ -140,7 +140,7 @@ def look_command(game, player, args):
             item = game.items.get(item_id)
             if item:
                 items_here.append(game.format_item(item.name))
-        output += f"\nItems here: {', '.join(items_here)}"
+        output += f"\nItems: {', '.join(items_here)}"
         
     # Show room flags if present
     if room.flags:

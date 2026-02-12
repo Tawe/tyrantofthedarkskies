@@ -1,0 +1,92 @@
+---
+title: Tyrant of the Dark Skies - Combat Flow
+---
+flowchart TB
+
+    %% ── Entry Triggers ─────────────────────────────
+    subgraph Triggers["Combat Start Triggers"]
+        direction TB
+        t_attack["Player uses attack target"]
+        t_maneuver["Player uses damage-dealing maneuver"]
+        t_aggressive["Aggressive creature targets player"]
+    end
+
+    %% ── Preconditions ──────────────────────────────
+    subgraph Preconditions["Preconditions"]
+        direction TB
+        safe_check["Room is safe?"]
+        block_safe["Block hostile actions\n(no auto-engage, no hostile commands)"]
+        allow_start["Allow combat start"]
+    end
+
+    %% ── Combat Init ────────────────────────────────
+    subgraph Init["Combat Initialization"]
+        direction TB
+        init_room["Combat is room-level (shared)"]
+        init_initiative["Roll initiative once\n(fixed order)"]
+        init_insert["New participants insert\nat end of current round"]
+        init_autoattack["Start autoattack if attack/aggro\n(unarmed fallback if no weapon)"]
+    end
+
+    %% ── Participation ──────────────────────────────
+    subgraph Participation["Joining / States"]
+        direction TB
+        state_observe["Observing (not auto-joined)"]
+        join_combat["Join via join combat / attack / support maneuver"]
+        state_engaged["Engaged / Supporting / Disengaging"]
+    end
+
+    %% ── Combat Loop ────────────────────────────────
+    subgraph Loop["Round Loop"]
+        direction TB
+        phase_initiative["Initiative Phase\n(once per combat)"]
+        phase_action["Action Phase\n(primary + minor action)"]
+        phase_reaction["Reaction Phase\n(opportunity, interrupts)"]
+        phase_resolution["Resolution Phase\n(hit, DR, damage, states)"]
+        phase_summary["Summary Phase\n(room-level summary)"]
+        autoattack_tick["Autoattack Tick\n(BAT × weapon speed)"]
+        hit_check["Accuracy vs Dodging"]
+        dr_apply["Apply armor DR\nby damage type"]
+    end
+
+    %% ── End / Exit ─────────────────────────────────
+    subgraph End["Leaving / Ending Combat"]
+        direction TB
+        disengage["Disengage action"]
+        flee_window["Flee window allows move"]
+        end_conditions["End for player when:\n- no hostiles in room\n- disengage success\n- room change (simple)" ]
+        stop_autoattack["Autoattack stops\n(target cleared or kept as last)"]
+    end
+
+    %% ── Flow ───────────────────────────────────────
+    t_attack --> safe_check
+    t_maneuver --> safe_check
+    t_aggressive --> safe_check
+
+    safe_check -->|"Yes"| block_safe
+    safe_check -->|"No"| allow_start
+
+    allow_start --> init_room --> init_initiative --> init_insert --> init_autoattack
+    init_autoattack --> state_observe
+    state_observe --> join_combat --> state_engaged
+
+    state_engaged --> phase_initiative --> phase_action --> phase_reaction --> phase_resolution --> phase_summary --> phase_action
+
+    %% Autoattack details
+    phase_action --> autoattack_tick --> hit_check --> dr_apply --> phase_resolution
+
+    %% Leaving
+    state_engaged --> disengage --> flee_window --> end_conditions --> stop_autoattack
+
+    %% Styling
+    classDef trigger fill:#e0f2ff,stroke:#1d4ed8,color:#1e3a8a
+    classDef precond fill:#fef3c7,stroke:#b45309,color:#78350f
+    classDef init fill:#ede9fe,stroke:#6d28d9,color:#4c1d95
+    classDef loop fill:#dcfce7,stroke:#15803d,color:#14532d
+    classDef endClass fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
+
+    class t_attack,t_maneuver,t_aggressive trigger
+    class safe_check,block_safe,allow_start precond
+    class init_room,init_initiative,init_insert,init_autoattack init
+    class phase_initiative,phase_action,phase_reaction,phase_resolution,phase_summary,autoattack_tick,hit_check,dr_apply loop
+    class disengage,flee_window,end_conditions,stop_autoattack endClass
